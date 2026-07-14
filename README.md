@@ -54,6 +54,10 @@ First launch creates your local account and data directory. There are no default
 
 Delete `tsukuyomi.exe` and remove `%LOCALAPPDATA%\TsukuyomiOS` if you want to remove all local data, settings, and the database.
 
+### Release Format
+
+This repository is for development. The public release is a single prebuilt `tsukuyomi.exe` file only. Source code and build files are not released.
+
 ## Security & Privacy Notes
 
 - The Credential Vault encryption key exists only in memory during your session. It is never written to disk.
