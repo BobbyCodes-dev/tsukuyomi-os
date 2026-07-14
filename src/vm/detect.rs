@@ -27,9 +27,6 @@ fn has_feature(feature: &str) -> bool {
     }
 }
 
-/// Searches PATH for `name` with each of the suffixes in order (matching the
-/// original Python `_which`'s exact search order: bare name first, then `.exe`,
-/// `.cmd`, `.bat` across all of PATH before trying the next suffix).
 fn which(name: &str) -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH")?;
     for ext in ["", ".exe", ".cmd", ".bat"] {

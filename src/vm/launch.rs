@@ -49,7 +49,6 @@ fn run_checked(program: &str, args: &[&str]) -> Result<()> {
     Ok(())
 }
 
-/// Idempotent: if `vm_name` is already registered in VirtualBox, does nothing.
 pub fn create_virtualbox_vm(vm_name: &str, disk_path: &Path) -> Result<()> {
     if !disk_path.exists() {
         bail!("Disk image not found: {}", disk_path.display());

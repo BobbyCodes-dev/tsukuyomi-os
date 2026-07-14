@@ -1,7 +1,5 @@
 use ratatui::style::{Color, Modifier, Style};
 
-/// Translated from `tsukuyomi.tcss`'s `$primary` / `$text-muted` / `$success` /
-/// `$primary-darken-2` theme variables (Textual's default dark theme palette).
 pub const PRIMARY: Color = Color::Cyan;
 pub const PRIMARY_DARK: Color = Color::DarkGray;
 pub const MUTED: Color = Color::Gray;

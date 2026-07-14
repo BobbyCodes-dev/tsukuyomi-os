@@ -54,7 +54,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &LoginState) {
 }
 
 fn try_submit(state: &mut LoginState) -> Action {
-    match users::authenticate(&state.username.value, &state.password.value) {
+    match users::authenticate(state.username.value.trim(), &state.password.value) {
         Ok(Some(user)) => Action::LoggedIn(user),
         Ok(None) => {
             state.error = "Invalid username or password.".to_string();
@@ -68,9 +68,6 @@ fn try_submit(state: &mut LoginState) -> Action {
 }
 
 pub fn handle_key(state: &mut LoginState, key: KeyEvent) -> Action {
-    // Ctrl+R replaces Python's bare 'r' keybinding: a plain 'r' is a valid
-    // username/password character here, so the reset shortcut needs a modifier
-    // to avoid colliding with typing into a focused text field.
     if key.code == KeyCode::Char('r') && key.modifiers.contains(KeyModifiers::CONTROL) {
         return Action::ToSetup;
     }

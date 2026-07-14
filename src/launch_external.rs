@@ -8,9 +8,6 @@ fn home_dir() -> Option<PathBuf> {
 }
 
 pub fn open_browser() {
-    // "start" is a cmd.exe builtin, not an executable, so it must be invoked
-    // through cmd. The empty "" argument is the standard workaround for
-    // `start` otherwise treating the first quoted argument as a window title.
     let _ = Command::new("cmd").args(["/C", "start", "", BROWSER_URL]).spawn();
 }
 

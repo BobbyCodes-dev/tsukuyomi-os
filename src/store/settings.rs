@@ -36,8 +36,6 @@ fn settings_path() -> Result<PathBuf> {
     Ok(super::ensure_data_dir()?.join("settings.json"))
 }
 
-/// Mirrors Python's `load_settings`: defaults merged with whatever is present in the
-/// file (missing/unparseable file falls back to defaults entirely).
 pub fn load_settings() -> Settings {
     let Ok(path) = settings_path() else {
         return Settings::default();

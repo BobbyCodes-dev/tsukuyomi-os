@@ -3,8 +3,6 @@ pub mod users;
 
 use std::path::PathBuf;
 
-/// Matches Python's `platformdirs.user_data_dir("TsukuyomiOS", "bobbycodes")` on Windows:
-/// `%LOCALAPPDATA%\bobbycodes\TsukuyomiOS`.
 pub fn data_dir() -> PathBuf {
     let local_app_data =
         std::env::var("LOCALAPPDATA").expect("LOCALAPPDATA environment variable must be set");

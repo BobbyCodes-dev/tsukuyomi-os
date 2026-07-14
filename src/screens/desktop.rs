@@ -57,9 +57,6 @@ pub const APPS: &[AppEntry] = &[
     },
 ];
 
-/// Matches Python's `now_string()`: only the timezone is read from settings; the
-/// display format itself is hardcoded regardless of the `use_24h`/`date_format`
-/// settings (a quirk preserved for parity, not something this rewrite fixes).
 pub fn now_string() -> String {
     let s = settings::load_settings();
     let tz: chrono_tz::Tz = s.timezone.parse().unwrap_or(chrono_tz::America::Chicago);

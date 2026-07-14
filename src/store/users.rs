@@ -82,8 +82,6 @@ pub fn authenticate(username: &str, password: &str) -> Result<Option<User>> {
     }
 }
 
-/// Returns false (instead of erroring) when the username already exists, matching
-/// the Python `create_user`'s bool-return contract used by the Setup screen.
 pub fn create_user(username: &str, password: &str, display_name: &str, role: &str) -> Result<bool> {
     let conn = open_db()?;
     let hash = hash_password(password)?;

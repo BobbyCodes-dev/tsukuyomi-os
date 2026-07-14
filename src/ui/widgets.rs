@@ -5,8 +5,6 @@ use ratatui::widgets::{Block, Borders};
 
 use super::theme;
 
-/// Centers a fixed-size box of `width`x`height` within `area`, matching Textual's
-/// `Screen { align: center middle; }` combined with a form's fixed `width`.
 pub fn centered_fixed(width: u16, height: u16, area: Rect) -> Rect {
     let width = width.min(area.width);
     let height = height.min(area.height);
@@ -29,8 +27,6 @@ pub fn log_block(title: &str) -> Block<'static> {
         .border_style(theme::log_border_style())
 }
 
-/// A single text input field's editable state (Textual's `Input` widget has no
-/// ratatui equivalent, so this is hand-rolled).
 #[derive(Debug, Clone, Default)]
 pub struct TextField {
     pub value: String,
@@ -58,7 +54,6 @@ impl TextField {
         self.value.pop();
     }
 
-    /// What to actually render: masked fields show `*` per character.
     pub fn display(&self) -> String {
         if self.masked {
             "*".repeat(self.value.chars().count())
@@ -68,7 +63,6 @@ impl TextField {
     }
 }
 
-/// Capped scrolling status log, replacing Textual's `Log` widget.
 #[derive(Debug, Clone)]
 pub struct LogPanel {
     lines: VecDeque<String>,

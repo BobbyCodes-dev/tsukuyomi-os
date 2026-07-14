@@ -35,8 +35,6 @@ pub struct App {
 }
 
 impl App {
-    /// Mirrors `TsukuyomiApp.on_mount`: force onboarding if settings say so or no
-    /// users exist yet.
     pub fn new() -> Result<Self> {
         let mut settings = crate::store::settings::load_settings();
         let existing_users = crate::store::users::list_users()?;

@@ -12,18 +12,11 @@ fn home_dir() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
 }
 
-/// `Path::canonicalize()` on Windows returns `\\?\`-prefixed verbatim paths.
-/// Those work fine for filesystem calls but are noisy to show a user, so this
-/// strips the prefix for display only (Python's `Path.resolve()` never added one).
 fn display_path(p: &std::path::Path) -> String {
     let s = p.display().to_string();
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
 }
 
-/// Mirrors Python's `uninstall.nuke()`. Independently guesses the standard
-/// Windows data locations rather than only trusting `store::data_dir()`, matching
-/// the original's defense against the app's own path-construction logic being
-/// wrong or having changed across versions.
 pub fn nuke(args: UninstallArgs) -> Result<()> {
     let mut targets: Vec<PathBuf> = vec![crate::store::data_dir()];
     if let Some(home) = home_dir() {
@@ -61,11 +54,29 @@ pub fn nuke(args: UninstallArgs) -> Result<()> {
 
     for p in &existing {
         if p.is_dir() {
-            if args.keep_vms && p.file_name().map(|n| n == "vm").unwrap_or(false) {
-                println!("Preserving VM directory: {}", display_path(p));
+            if args.keep_vms {
+                let vm_dir = p.join("vm");
+                if let Ok(entries) = std::fs::read_dir(p) {
+                    for entry in entries.flatten() {
+                        let entry_path = entry.path();
+                        if entry_path == vm_dir {
+                            continue;
+                        }
+                        if entry_path.is_dir() {
+                            let _ = std::fs::remove_dir_all(&entry_path);
+                        } else {
+                            let _ = std::fs::remove_file(&entry_path);
+                        }
+                    }
+                }
+                if vm_dir.exists() {
+                    println!("Removed: {} (preserved vm/)", display_path(p));
+                } else {
+                    let _ = std::fs::remove_dir_all(p);
+                    println!("Removed: {}", display_path(p));
+                }
                 continue;
             }
-            // Best-effort like Python's `shutil.rmtree(p, ignore_errors=True)`.
             let _ = std::fs::remove_dir_all(p);
             println!("Removed: {}", display_path(p));
         } else {

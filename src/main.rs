@@ -24,7 +24,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Permanently delete all local Tsukuyomi OS data.
     Uninstall {
         #[arg(long)]
         keep_vms: bool,
@@ -49,8 +48,6 @@ fn run_tui() -> Result<()> {
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
 
-    // Restore the terminal even if the app panics mid-render, so a crash
-    // doesn't leave the user's shell stuck in raw/alternate-screen mode.
     let default_panic = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
