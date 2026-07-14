@@ -55,7 +55,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &LoginState) {
 
 fn try_submit(state: &mut LoginState) -> Action {
     match users::authenticate(state.username.value.trim(), &state.password.value) {
-        Ok(Some(user)) => Action::LoggedIn(user),
+        Ok(Some(user)) => Action::LoggedIn(user, state.password.value.clone()),
         Ok(None) => {
             state.error = "Invalid username or password.".to_string();
             Action::None

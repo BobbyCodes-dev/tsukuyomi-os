@@ -162,7 +162,7 @@ fn try_submit(state: &mut SetupState) -> Action {
     }
 
     match users::authenticate(&username, &state.password.value) {
-        Ok(Some(user)) => Action::LoggedIn(user),
+        Ok(Some(user)) => Action::LoggedIn(user, state.password.value.clone()),
         _ => {
             state.error = "Account created; please log in.".to_string();
             Action::ToLogin

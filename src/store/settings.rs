@@ -14,6 +14,7 @@ pub struct Settings {
     pub use_24h: bool,
     pub notifications: bool,
     pub onboarded: bool,
+    pub vm_network_mode: String,
 }
 
 impl Default for Settings {
@@ -28,6 +29,7 @@ impl Default for Settings {
             use_24h: true,
             notifications: true,
             onboarded: false,
+            vm_network_mode: "isolated".to_string(),
         }
     }
 }

@@ -8,14 +8,16 @@ use ratatui::Frame;
 use crate::app::Action;
 use crate::store::settings;
 use crate::ui::{theme, widgets};
+use crate::vm::network::ALL_MODES;
 
-const FIELD_COUNT: usize = 4;
+const FIELD_COUNT: usize = 5;
 
 pub struct SettingsState {
     pub theme: widgets::TextField,
     pub timezone: widgets::TextField,
     pub language: widgets::TextField,
     pub notifications: widgets::TextField,
+    pub network_mode_idx: usize,
     pub focus: usize,
     pub status: String,
 }
@@ -23,11 +25,16 @@ pub struct SettingsState {
 impl Default for SettingsState {
     fn default() -> Self {
         let s = settings::load_settings();
+        let network_mode_idx = ALL_MODES
+            .iter()
+            .position(|m| m.id() == s.vm_network_mode)
+            .unwrap_or(0);
         SettingsState {
             theme: widgets::TextField::with_value(s.theme),
             timezone: widgets::TextField::with_value(s.timezone),
             language: widgets::TextField::with_value(s.language),
             notifications: widgets::TextField::with_value(if s.notifications { "true" } else { "false" }),
+            network_mode_idx,
             focus: 0,
             status: String::new(),
         }
@@ -41,7 +48,7 @@ fn field_line(label: &str, value: String, focused: bool) -> Line<'static> {
 }
 
 pub fn draw(frame: &mut Frame, area: Rect, state: &SettingsState) {
-    let rect = widgets::centered_fixed(80, 16, area);
+    let rect = widgets::centered_fixed(80, 18, area);
     let block = widgets::form_block("Settings");
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
@@ -51,8 +58,13 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &SettingsState) {
         field_line("Timezone", state.timezone.display(), state.focus == 1),
         field_line("Language", state.language.display(), state.focus == 2),
         field_line("Notifications", state.notifications.display(), state.focus == 3),
+        field_line(
+            "Sandbox VM Network",
+            ALL_MODES[state.network_mode_idx].label().to_string(),
+            state.focus == 4,
+        ),
         Line::raw(""),
-        Line::styled("Tab: move  Enter: save  Esc: back", theme::hint_style()),
+        Line::styled("Tab: move  Left/Right: change  Enter: save  Esc: back", theme::hint_style()),
     ];
     if !state.status.is_empty() {
         lines.push(Line::styled(state.status.clone(), theme::clock_style()));
@@ -67,6 +79,7 @@ fn save(state: &mut SettingsState) {
     s.timezone = state.timezone.value.clone();
     s.language = state.language.value.clone();
     s.notifications = matches!(state.notifications.value.to_lowercase().as_str(), "true" | "1" | "yes" | "on");
+    s.vm_network_mode = ALL_MODES[state.network_mode_idx].id().to_string();
     match settings::save_settings(&s) {
         Ok(()) => state.status = "Settings saved locally.".to_string(),
         Err(e) => state.status = format!("Error saving settings: {e}"),
@@ -82,6 +95,14 @@ pub fn handle_key(state: &mut SettingsState, key: KeyEvent) -> Action {
         }
         KeyCode::BackTab | KeyCode::Up => {
             state.focus = (state.focus + FIELD_COUNT - 1) % FIELD_COUNT;
+            Action::None
+        }
+        KeyCode::Left if state.focus == 4 => {
+            state.network_mode_idx = (state.network_mode_idx + ALL_MODES.len() - 1) % ALL_MODES.len();
+            Action::None
+        }
+        KeyCode::Right if state.focus == 4 => {
+            state.network_mode_idx = (state.network_mode_idx + 1) % ALL_MODES.len();
             Action::None
         }
         KeyCode::Enter => {

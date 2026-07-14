@@ -1,5 +1,7 @@
 mod app;
 mod launch_external;
+mod rustdesk;
+mod scan;
 mod screens;
 mod store;
 mod ui;
