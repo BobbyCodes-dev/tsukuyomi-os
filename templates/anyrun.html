@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tsukuyomi Sandbox</title>
+  <style>
+    :root {
+      --bg: #070a0f;
+      --panel: #0d1218;
+      --panel-2: #111822;
+      --panel-3: #182231;
+      --accent: #00d4ff;
+      --accent-2: #8b5cf6;
+      --text: #e6f1f8;
+      --muted: #8b9bb4;
+      --border: #1c2733;
+      --success: #34d399;
+      --warning: #fbbf24;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+    body { display: flex; flex-direction: column; }
+    #header {
+      height: 44px; background: var(--panel); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    }
+    #header .title { font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+    #header button { background: transparent; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+    #main { flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; }
+    #sidebar { background: var(--panel); border-right: 1px solid var(--border); padding: 18px; display: flex; flex-direction: column; gap: 14px; overflow-y: auto; }
+    #workspace { padding: 20px; overflow-y: auto; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .input-group { display: flex; flex-direction: column; gap: 8px; }
+    label { font-size: 0.85rem; color: var(--muted); }
+    input[type="text"], input[type="url"], select, textarea {
+      background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; font: inherit;
+    }
+    textarea { min-height: 120px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; }
+    .btn {
+      background: var(--accent); color: #000; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 700; cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.secondary { background: var(--panel-3); color: var(--text); border: 1px solid var(--border); }
+    .tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+    .tab { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 6px 12px; cursor: pointer; }
+    .tab.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    #log { background: #000; color: #0f0; font-family: 'Consolas','Monaco',monospace; font-size: 0.85rem; padding: 14px; border-radius: 8px; min-height: 240px; white-space: pre-wrap; }
+    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 700; }
+    .status-queued { background: var(--panel-3); color: var(--muted); }
+    .status-running { background: var(--warning); color: #000; }
+    .status-done { background: var(--success); color: #000; }
+    .hidden { display: none !important; }
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px; text-align: center; }
+    .stat .value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+    .stat .label { font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; }
+    .risk-low { color: var(--success); }
+    .risk-med { color: var(--warning); }
+    .risk-high { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <header id="header">
+    <div class="title"><span>🧪</span> Tsukuyomi Sandbox</div>
+    <button onclick="window.parent.postMessage({action:'close-app'},'*')">Close</button>
+  </header>
+  <main id="main">
+    <aside id="sidebar">
+      <div class="card">
+        <h2>New Analysis</h2>
+        <div class="input-group">
+          <label>Target type</label>
+          <select id="target-type">
+            <option value="file">File</option>
+            <option value="url">URL</option>
+            <option value="script">Script / Shellcode</option>
+          </select>
+        </div>
+        <div class="input-group" id="file-group">
+          <label>Upload file</label>
+          <input type="file" id="file-input">
+        </div>
+        <div class="input-group hidden" id="url-group">
+          <label>URL to detonate</label>
+          <input type="url" id="url-input" placeholder="https://example.com/payload.exe">
+        </div>
+        <div class="input-group hidden" id="script-group">
+          <label>Script / shellcode</label>
+          <textarea id="script-input" placeholder="Paste suspicious script here..."></textarea>
+        </div>
+        <div class="input-group">
+          <label>OS profile</label>
+          <select id="os-profile">
+            <option value="win10">Windows 10 x64</option>
+            <option value="win11">Windows 11 x64</option>
+            <option value="ubuntu">Ubuntu 22.04</option>
+          </select>
+        </div>
+        <button class="btn" id="btn-run" style="margin-top:8px">Run Analysis</button>
+      </div>
+      <div class="card" id="history-card">
+        <h2>History</h2>
+        <div id="history-list" style="font-size:0.85rem;color:var(--muted)">No analyses yet.</div>
+      </div>
+    </aside>
+    <section id="workspace">
+      <div id="intro" class="card">
+        <h2>Welcome to Tsukuyomi Sandbox</h2>
+        <p style="color:var(--muted)">This is a UI clone of an interactive malware sandbox. It simulates detonation, behavior logging, and IOC extraction — no real malware is executed.</p>
+      </div>
+      <div id="analysis" class="hidden">
+        <div class="stats">
+          <div class="stat"><div class="value" id="stat-risk">—</div><div class="label">Risk score</div></div>
+          <div class="stat"><div class="value" id="stat-dropped">0</div><div class="label">Dropped files</div></div>
+          <div class="stat"><div class="value" id="stat-network">0</div><div class="label">Network events</div></div>
+        </div>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="margin:0">Status: <span id="status" class="status-badge status-queued">QUEUED</span></h2>
+            <span id="task-id" style="font-size:0.8rem;color:var(--muted)"></span>
+          </div>
+          <div id="log"></div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="tabs">
+            <button class="tab active" data-tab="iocs">IOCs</button>
+            <button class="tab" data-tab="network">Network</button>
+            <button class="tab" data-tab="files">Files</button>
+            <button class="tab" data-tab="registry">Registry</button>
+          </div>
+          <div id="tab-iocs" class="tab-pane"></div>
+          <div id="tab-network" class="tab-pane hidden"></div>
+          <div id="tab-files" class="tab-pane hidden"></div>
+          <div id="tab-registry" class="tab-pane hidden"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <script>
+    const targetType = document.getElementById('target-type');
+    const fileGroup = document.getElementById('file-group');
+    const urlGroup = document.getElementById('url-group');
+    const scriptGroup = document.getElementById('script-group');
+    targetType.addEventListener('change', () => {
+      fileGroup.classList.toggle('hidden', targetType.value !== 'file');
+      urlGroup.classList.toggle('hidden', targetType.value !== 'url');
+      scriptGroup.classList.toggle('hidden', targetType.value !== 'script');
+    });
+
+    let history = [];
+    function addHistory(task) {
+      history.unshift(task);
+      const list = document.getElementById('history-list');
+      list.innerHTML = history.map(t => `<div style="margin-bottom:6px;border-bottom:1px solid var(--border);padding-bottom:6px">
+        <div style="font-weight:600">${t.name}</div>
+        <div style="font-size:0.75rem">${t.id.slice(0,8)} • ${t.status}</div>
+      </div>`).join('') || 'No analyses yet.';
+    }
+
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+      });
+    });
+
+    function log(line) {
+      const el = document.getElementById('log');
+      el.textContent += `[${new Date().toLocaleTimeString()}] ${line}\n`;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function setStatus(status) {
+      const el = document.getElementById('status');
+      el.textContent = status;
+      el.className = 'status-badge ' + (status === 'DONE' ? 'status-done' : status === 'RUNNING' ? 'status-running' : 'status-queued');
+    }
+
+    function renderTable(containerId, headers, rows) {
+      const html = ['<table><tr>' + headers.map(h => `<th>${h}</th>`).join('') + '</tr>'];
+      for (const row of rows) html.push('<tr>' + row.map(c => `<td>${c}</td>`).join('') + '</tr>');
+      html.push('</table>');
+      document.getElementById(containerId).innerHTML = html.join('');
+    }
+
+    async function poll(taskId) {
+      const res = await fetch(`/api/sandbox/${taskId}/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      document.getElementById('log').textContent = data.logs.map(l => `[${new Date(l.time).toLocaleTimeString()}] ${l.message}`).join('\n') + '\n';
+      document.getElementById('log').scrollTop = document.getElementById('log').scrollHeight;
+      setStatus(data.status);
+      if (data.status === 'DONE') {
+        document.getElementById('stat-risk').textContent = data.report.risk_score;
+        document.getElementById('stat-risk').className = data.report.risk_score >= 70 ? 'value risk-high' : data.report.risk_score >= 40 ? 'value risk-med' : 'value risk-low';
+        document.getElementById('stat-dropped').textContent = data.report.dropped_files.length;
+        document.getElementById('stat-network').textContent = data.report.network_events.length;
+        renderTable('tab-iocs', ['Type', 'Value', 'Severity'], data.report.iocs.map(i => [i.type, i.value, i.severity]));
+        renderTable('tab-network', ['Time', 'Protocol', 'Destination', 'Status'], data.report.network_events.map(n => [n.time, n.protocol, n.destination, n.status]));
+        renderTable('tab-files', ['Path', 'Action', 'SHA256'], data.report.dropped_files.map(f => [f.path, f.action, f.sha256]));
+        renderTable('tab-registry', ['Hive', 'Key', 'Value'], data.report.registry.map(r => [r.hive, r.key, r.value]));
+        addHistory({id: taskId, name: data.target_name, status: 'DONE'});
+        document.getElementById('btn-run').disabled = false;
+        return;
+      }
+      setTimeout(() => poll(taskId), 1200);
+    }
+
+    document.getElementById('btn-run').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-run');
+      btn.disabled = true;
+      document.getElementById('intro').classList.add('hidden');
+      document.getElementById('analysis').classList.remove('hidden');
+      document.getElementById('log').textContent = '';
+      document.getElementById('stat-risk').textContent = '—';
+      document.getElementById('stat-risk').className = 'value';
+
+      const type = targetType.value;
+      const form = new FormData();
+      form.append('type', type);
+      form.append('os_profile', document.getElementById('os-profile').value);
+      if (type === 'file') {
+        const f = document.getElementById('file-input').files[0];
+        if (!f) { alert('Select a file'); btn.disabled = false; return; }
+        form.append('target', f.name);
+        form.append('file', f);
+      } else if (type === 'url') {
+        form.append('target', document.getElementById('url-input').value);
+      } else {
+        form.append('target', document.getElementById('script-input').value.slice(0, 40) || 'script');
+        form.append('script', document.getElementById('script-input').value);
+      }
+
+      const res = await fetch('/api/sandbox/submit', {method: 'POST', body: form});
+      if (!res.ok) { alert('Submit failed'); btn.disabled = false; return; }
+      const data = await res.json();
+      document.getElementById('task-id').textContent = data.id;
+      poll(data.id);
+    });
+  </script>
+</body>
+</html>
