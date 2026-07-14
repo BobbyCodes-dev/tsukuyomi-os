@@ -17,6 +17,7 @@ pub struct AppEntry {
     pub description: &'static str,
     pub icon: &'static str,
     pub category: &'static str,
+    pub sensitive: bool,
 }
 
 pub const APPS: &[AppEntry] = &[
@@ -26,6 +27,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Launch an isolated Windows VM for malware analysis.",
         icon: "\u{1F9EA}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "browser",
@@ -33,6 +35,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Open an embedded browser.",
         icon: "\u{1F310}",
         category: "Productivity",
+        sensitive: false,
     },
     AppEntry {
         id: "terminal",
@@ -40,6 +43,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Local system shell.",
         icon: "\u{1F4BB}",
         category: "System",
+        sensitive: false,
     },
     AppEntry {
         id: "files",
@@ -47,6 +51,7 @@ pub const APPS: &[AppEntry] = &[
         description: "File manager.",
         icon: "\u{1F4C1}",
         category: "System",
+        sensitive: false,
     },
     AppEntry {
         id: "vault",
@@ -54,6 +59,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Encrypted store for names, usernames, passwords, and notes.",
         icon: "\u{1F510}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "connect",
@@ -61,6 +67,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Saved SSH/RDP bookmarks for one-key connections.",
         icon: "\u{1F5A5}",
         category: "Network",
+        sensitive: false,
     },
     AppEntry {
         id: "assets",
@@ -68,6 +75,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Track machines you support, with a quick reachability ping.",
         icon: "\u{1F5C3}",
         category: "Network",
+        sensitive: false,
     },
     AppEntry {
         id: "updates",
@@ -75,6 +83,7 @@ pub const APPS: &[AppEntry] = &[
         description: "View pending Windows updates via PSWindowsUpdate.",
         icon: "\u{1F5D2}",
         category: "System",
+        sensitive: false,
     },
     AppEntry {
         id: "health",
@@ -82,6 +91,7 @@ pub const APPS: &[AppEntry] = &[
         description: "CPU, RAM, disk usage, and Windows services.",
         icon: "\u{1F4CA}",
         category: "System",
+        sensitive: false,
     },
     AppEntry {
         id: "network",
@@ -89,6 +99,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Ping, traceroute, port check, and interface stats for a host.",
         icon: "\u{1F6F0}",
         category: "Network",
+        sensitive: false,
     },
     AppEntry {
         id: "firewall",
@@ -96,6 +107,7 @@ pub const APPS: &[AppEntry] = &[
         description: "View, enable/disable, and add Windows Defender Firewall rules.",
         icon: "\u{1F6E1}",
         category: "Security",
+        sensitive: false,
     },
     AppEntry {
         id: "backups",
@@ -103,6 +115,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Track and run folder backups via robocopy.",
         icon: "\u{1F4BE}",
         category: "System",
+        sensitive: false,
     },
     AppEntry {
         id: "remote_support",
@@ -110,6 +123,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Host or connect a mutual-consent remote session via RustDesk.",
         icon: "\u{1F91D}",
         category: "Network",
+        sensitive: false,
     },
     AppEntry {
         id: "engagements",
@@ -117,13 +131,15 @@ pub const APPS: &[AppEntry] = &[
         description: "Track client security engagements: scope, dates, status, invoice ref.",
         icon: "\u{1F4CB}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "scan_request",
         name: "Scan Request",
-        description: "Submit an authorized scan request for an engagement via webhook.",
+        description: "Log an authorized scan request for an engagement.",
         icon: "\u{1F3AF}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "osint_notes",
@@ -131,6 +147,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Manual recon notebook tied to an engagement — no automated data gathering.",
         icon: "\u{1F4DD}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "findings",
@@ -138,6 +155,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Track findings, build markdown reports, and export client-ready documents.",
         icon: "\u{1F4C4}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "evidence",
@@ -145,6 +163,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Encrypted text-only evidence entries linked to findings.",
         icon: "\u{1F50F}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "cve",
@@ -152,6 +171,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Manual CVE notes with optional NVD fetch — offline-first.",
         icon: "\u{1F6A8}",
         category: "Security",
+        sensitive: true,
     },
     AppEntry {
         id: "settings",
@@ -159,6 +179,7 @@ pub const APPS: &[AppEntry] = &[
         description: "Configure Tsukuyomi OS.",
         icon: "\u{2699}",
         category: "System",
+        sensitive: false,
     },
 ];
 
@@ -198,7 +219,17 @@ impl DesktopState {
     }
 }
 
+pub fn visible_apps(show_sensitive: bool) -> Vec<(usize, &'static AppEntry)> {
+    APPS.iter()
+        .enumerate()
+        .filter(|(_, a)| show_sensitive || !a.sensitive)
+        .collect()
+}
+
 pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::User) {
+    let show_sensitive = settings::load_settings().show_security_tools;
+    let apps = visible_apps(show_sensitive);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -234,9 +265,9 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
         chunks[3],
     );
 
-    let rows: Vec<Row> = APPS
+    let rows: Vec<Row> = apps
         .iter()
-        .map(|a| Row::new(vec![a.icon.to_string(), a.name.to_string(), a.description.to_string(), a.category.to_string()]))
+        .map(|(_, a)| Row::new(vec![a.icon.to_string(), a.name.to_string(), a.description.to_string(), a.category.to_string()]))
         .collect();
     let table = Table::new(
         rows,
@@ -259,7 +290,12 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
 }
 
 fn launch_selected(state: &mut DesktopState) -> Action {
-    let app = &APPS[state.selected];
+    let show_sensitive = settings::load_settings().show_security_tools;
+    let apps = visible_apps(show_sensitive);
+    let app = apps.get(state.selected).map(|(_, a)| *a);
+    let Some(app) = app else {
+        return Action::None;
+    };
     state.log_status(format!("Launching {}...", app.name));
     match app.id {
         "sandbox" => Action::ToSandbox,
@@ -299,6 +335,17 @@ fn launch_selected(state: &mut DesktopState) -> Action {
 }
 
 pub fn handle_key(state: &mut DesktopState, key: KeyEvent) -> Action {
+    let show_sensitive = settings::load_settings().show_security_tools;
+    let apps = visible_apps(show_sensitive);
+    let max = apps.len();
+    if max == 0 {
+        return match key.code {
+            KeyCode::Char('q') => Action::Quit,
+            KeyCode::Char('s') => Action::ToSettings,
+            _ => Action::None,
+        };
+    }
+
     match key.code {
         KeyCode::Char('q') => Action::Quit,
         KeyCode::Char('r') => {
@@ -308,11 +355,11 @@ pub fn handle_key(state: &mut DesktopState, key: KeyEvent) -> Action {
         }
         KeyCode::Char('s') => Action::ToSettings,
         KeyCode::Up => {
-            state.selected = if state.selected == 0 { APPS.len() - 1 } else { state.selected - 1 };
+            state.selected = if state.selected == 0 { max - 1 } else { state.selected - 1 };
             Action::None
         }
         KeyCode::Down => {
-            state.selected = (state.selected + 1) % APPS.len();
+            state.selected = (state.selected + 1) % max;
             Action::None
         }
         KeyCode::Enter => launch_selected(state),

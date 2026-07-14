@@ -26,6 +26,9 @@ Tsukuyomi OS gives security consultants and sysadmins one local interface for da
 - **Remote Support** — launch consensual RustDesk sessions; host mode or connect-by-ID
 
 ### Security Workflow
+
+These tools are hidden on the desktop launcher by default. Enable **Show Security Tools** in Settings to reveal them.
+
 - **Tsukuyomi Sandbox** — launch Windows Sandbox, Hyper-V, VirtualBox, VMware, or QEMU environments, with automated Alpine VM provisioning on VirtualBox
 - **Firewall Rule Manager** — view and toggle local Windows Defender Firewall rules
 - **Engagement Tracker** — record client, scope, dates, status, and invoice reference
