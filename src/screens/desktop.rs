@@ -265,6 +265,16 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
         chunks[3],
     );
 
+    if !show_sensitive {
+        frame.render_widget(
+            Paragraph::new(Line::styled(
+                "Security apps hidden. Enable Show Security Tools in Settings to reveal them.",
+                theme::hint_style(),
+            )),
+            chunks[3],
+        );
+    }
+
     let rows: Vec<Row> = apps
         .iter()
         .map(|(_, a)| Row::new(vec![a.icon.to_string(), a.name.to_string(), a.description.to_string(), a.category.to_string()]))
