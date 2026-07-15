@@ -1,0 +1,57 @@
+Tsukuyomi OS Freeware License
+Copyright (c) 2026 BobbyCodes-dev. All rights reserved.
+
+This license applies to the compiled Tsukuyomi OS application ("the
+Software") distributed as tsukuyomi.exe. The source code is not published
+under this or any license.
+
+1. GRANT OF LICENSE
+   You are granted a free, non-exclusive, non-transferable license to
+   download, install, and use the Software for personal or commercial
+   purposes, subject to the terms below.
+
+2. RESTRICTIONS
+   Without prior written permission from the copyright holder, you may not:
+   a) Redistribute, rehost, mirror, or otherwise make the Software available
+      for download from any source other than the official release page;
+   b) Reverse engineer, decompile, disassemble, or otherwise attempt to
+      derive the source code of the Software, except to the extent such
+      restriction is prohibited by applicable law;
+   c) Modify, patch, or create derivative works of the Software binary;
+   d) Sell, sublicense, rent, or lease the Software.
+
+3. INTELLECTUAL PROPERTY
+   All rights, title, and interest in and to the Software, including all
+   intellectual property rights, remain with the copyright holder. This
+   license does not grant you any rights to trademarks or service marks
+   of the copyright holder.
+
+4. ACCEPTABLE USE
+   The Software includes tools intended for security professionals and
+   system administrators (e.g. network diagnostics, firewall management,
+   VM sandboxing, remote support). You may only use these tools against
+   systems and networks you own or are explicitly authorized to access.
+   The copyright holder is not responsible for misuse of the Software.
+
+5. NO WARRANTY
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+   OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES,
+   OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR
+   THE USE OR OTHER DEALINGS IN THE SOFTWARE, INCLUDING WITHOUT LIMITATION
+   DATA LOSS, SYSTEM DAMAGE, OR UNAUTHORIZED ACCESS RESULTING FROM USE OF
+   THE SOFTWARE'S SECURITY TOOLS.
+
+7. TERMINATION
+   This license terminates automatically if you violate any of its terms.
+   Upon termination, you must cease use of the Software and delete all
+   copies in your possession.
+
+8. CHANGES
+   The copyright holder may release future versions of the Software under
+   different terms. This license applies to the version of the Software it
+   is distributed alongside.
