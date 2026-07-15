@@ -99,15 +99,14 @@ pub fn fetch_models_blocking(kind: ProviderKind, endpoint: &str, api_key: &str) 
                 .unwrap_or_default())
         }
         ProviderKind::OllamaCloud => {
-            let base = endpoint.trim_end_matches("/api/chat").trim_end_matches('/');
-            let resp = client.get(format!("{base}/api/tags")).bearer_auth(api_key).send()?;
+            let resp = client.get("https://ollama.com/v1/models").bearer_auth(api_key).send()?;
             if !resp.status().is_success() {
                 anyhow::bail!("{}", resp.status());
             }
             let data: Value = resp.json()?;
-            Ok(data["models"]
+            Ok(data["data"]
                 .as_array()
-                .map(|arr| arr.iter().filter_map(|m| m["name"].as_str().map(str::to_string)).collect())
+                .map(|arr| arr.iter().filter_map(|m| m["id"].as_str().map(str::to_string)).collect())
                 .unwrap_or_default())
         }
     }

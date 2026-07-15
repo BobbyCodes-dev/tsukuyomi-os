@@ -43,7 +43,7 @@ fn default_model_endpoint(kind: ProviderKind) -> (&'static str, &'static str) {
         ProviderKind::OpenAiCompatible => ("gpt-4o-mini", "https://api.openai.com/v1/chat/completions"),
         ProviderKind::Gemini => ("gemini-1.5-flash", "https://generativelanguage.googleapis.com/v1beta/models"),
         ProviderKind::Ollama => ("llama3.2", "http://localhost:11434/api/chat"),
-        ProviderKind::OllamaCloud => ("gpt-oss:120b-cloud", "https://ollama.com/api/chat"),
+        ProviderKind::OllamaCloud => ("gpt-oss:120b", "https://ollama.com/api/chat"),
     }
 }
 
