@@ -242,13 +242,14 @@ fn draw_messages(frame: &mut Frame, area: Rect, state: &AiAgentState) {
         let text = Span::raw(&msg.text);
         lines.push(Line::from(vec![prefix, text]));
     }
+    let max_scroll = (lines.len() as u16).saturating_sub(inner.height);
+    let scroll = state.scroll.min(max_scroll);
     let para = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
-        .scroll((state.scroll, 0));
+        .scroll((scroll, 0));
     frame.render_widget(para, inner);
     let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight);
-    let mut scrollbar_state = ratatui::widgets::ScrollbarState::new(state.messages.len().saturating_sub(inner.height as usize))
-        .position(state.scroll as usize);
+    let mut scrollbar_state = ratatui::widgets::ScrollbarState::new(max_scroll as usize).position(scroll as usize);
     frame.render_stateful_widget(scrollbar, inner, &mut scrollbar_state);
 }
 
