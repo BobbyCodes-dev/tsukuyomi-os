@@ -8,6 +8,8 @@ use ratatui::Frame;
 
 use crate::app::Action;
 use crate::launch_external;
+use crate::screens::ai_agent::{self, AiAgentState};
+use crate::store::vault::VaultKey;
 use crate::store::{settings, users};
 use crate::ui::{theme, widgets};
 
@@ -198,21 +200,36 @@ pub fn now_string() -> String {
     now.format("%a, %b %d, %Y  %I:%M:%S %p").to_string()
 }
 
+#[derive(PartialEq, Eq)]
+pub enum DesktopFocus {
+    Launcher,
+    AiChat,
+}
+
 pub struct DesktopState {
     pub selected: usize,
     pub log: widgets::LogPanel,
     pub clock_text: String,
+    pub focus: DesktopFocus,
+    pub ai_panel: Option<AiAgentState>,
     last_tick: Instant,
 }
 
 impl DesktopState {
-    pub fn new() -> Self {
+    pub fn new(user_id: i64, vault_key: Option<VaultKey>) -> Self {
         let mut log = widgets::LogPanel::new(200);
         log.push(format!(
             "[{}] Welcome to Tsukuyomi OS. Select an app and press Enter.",
             now_string()
         ));
-        DesktopState { selected: 0, log, clock_text: now_string(), last_tick: Instant::now() }
+        DesktopState {
+            selected: 0,
+            log,
+            clock_text: now_string(),
+            focus: DesktopFocus::Launcher,
+            ai_panel: vault_key.map(|key| AiAgentState::new(user_id, key)),
+            last_tick: Instant::now(),
+        }
     }
 
     pub fn log_status(&mut self, message: impl Into<String>) {
@@ -223,6 +240,12 @@ impl DesktopState {
         if self.last_tick.elapsed() >= Duration::from_secs(1) {
             self.clock_text = now_string();
             self.last_tick = Instant::now();
+        }
+    }
+
+    pub fn poll_ai(&mut self) {
+        if let Some(panel) = &mut self.ai_panel {
+            panel.poll();
         }
     }
 }
@@ -238,6 +261,11 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
     let show_sensitive = settings::load_settings().show_security_tools;
     let apps = visible_apps(show_sensitive);
 
+    let cols = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Percentage(64), Constraint::Percentage(36)])
+        .split(area);
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -248,7 +276,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
             Constraint::Min(5),
             Constraint::Length(15),
         ])
-        .split(area);
+        .split(cols[0]);
 
     frame.render_widget(
         Paragraph::new(Line::styled("Tsukuyomi OS", theme::title_style())),
@@ -267,7 +295,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
     );
     frame.render_widget(
         Paragraph::new(Line::styled(
-            "Use Up/Down to navigate, Enter to launch, 's' for settings, 'q' to quit.",
+            "Up/Down navigate, Enter launch, Tab: AI chat, 's' settings, 'q' quit.",
             theme::hint_style(),
         )),
         chunks[3],
@@ -287,6 +315,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
         .iter()
         .map(|(_, a)| Row::new(vec![a.icon.to_string(), a.name.to_string(), a.description.to_string(), a.category.to_string()]))
         .collect();
+    let apps_title = if state.focus == DesktopFocus::Launcher { "Apps [focused]" } else { "Apps" };
     let table = Table::new(
         rows,
         [Constraint::Length(4), Constraint::Length(22), Constraint::Min(20), Constraint::Length(14)],
@@ -294,7 +323,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
     .header(Row::new(vec!["Icon", "App", "Description", "Category"]).style(theme::title_style()))
     .row_highlight_style(theme::focused_field_style())
     .highlight_symbol("> ")
-    .block(widgets::form_block("Apps"));
+    .block(widgets::form_block(apps_title));
     let mut table_state = TableState::default().with_selected(Some(state.selected));
     frame.render_stateful_widget(table, chunks[4], &mut table_state);
 
@@ -305,6 +334,18 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &DesktopState, user: &users::U
         .block(widgets::log_block("Status"))
         .wrap(Wrap { trim: false });
     frame.render_widget(log_widget, chunks[5]);
+
+    match &state.ai_panel {
+        Some(panel) => ai_agent::draw(frame, cols[1], panel),
+        None => {
+            let msg = Paragraph::new(Line::styled(
+                "AI Agent unavailable: unable to derive encryption key.",
+                theme::error_style(),
+            ))
+            .block(widgets::form_block("AI Agent"));
+            frame.render_widget(msg, cols[1]);
+        }
+    }
 }
 
 fn launch_selected(state: &mut DesktopState) -> Action {
@@ -358,6 +399,32 @@ fn launch_selected(state: &mut DesktopState) -> Action {
 }
 
 pub fn handle_key(state: &mut DesktopState, key: KeyEvent) -> Action {
+    if key.code == KeyCode::Tab {
+        state.focus = match state.focus {
+            DesktopFocus::Launcher => DesktopFocus::AiChat,
+            DesktopFocus::AiChat => DesktopFocus::Launcher,
+        };
+        return Action::None;
+    }
+
+    match state.focus {
+        DesktopFocus::AiChat => handle_ai_chat_key(state, key),
+        DesktopFocus::Launcher => handle_launcher_key(state, key),
+    }
+}
+
+fn handle_ai_chat_key(state: &mut DesktopState, key: KeyEvent) -> Action {
+    if key.code == KeyCode::Esc {
+        state.focus = DesktopFocus::Launcher;
+        return Action::None;
+    }
+    match &mut state.ai_panel {
+        Some(panel) => ai_agent::handle_key(panel, key),
+        None => Action::None,
+    }
+}
+
+fn handle_launcher_key(state: &mut DesktopState, key: KeyEvent) -> Action {
     let show_sensitive = settings::load_settings().show_security_tools;
     let apps = visible_apps(show_sensitive);
     let max = apps.len();

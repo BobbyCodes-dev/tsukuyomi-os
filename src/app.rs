@@ -129,7 +129,7 @@ impl App {
             Action::ToLogin => self.screen = Screen::Login(screens::login::LoginState::new()),
             Action::LoggedIn(user, password) => {
                 self.vault_key = crate::store::vault::derive_key(user.id, &password).ok();
-                self.desktop = Some(screens::desktop::DesktopState::new());
+                self.desktop = Some(screens::desktop::DesktopState::new(user.id, self.vault_key));
                 self.screen = if self.start_ai_agent {
                     match self.vault_key {
                         Some(key) => Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key)),
@@ -298,6 +298,7 @@ impl App {
 
             if let Some(desktop) = &mut self.desktop {
                 desktop.tick();
+                desktop.poll_ai();
             }
 
             if let Screen::Sandbox(state) = &mut self.screen {
