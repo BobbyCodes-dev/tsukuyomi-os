@@ -1,3 +1,6 @@
+pub mod ai;
+pub mod ai_client;
+pub mod ai_tools;
 pub mod assets;
 pub mod backups;
 pub mod connections;
@@ -29,6 +32,7 @@ pub fn ensure_data_dir() -> anyhow::Result<PathBuf> {
 
 #[cfg(test)]
 pub fn set_data_dir_for_tests(dir: &std::path::Path) {
+    crate::store::ai::TEST_DB_DIR.with(|d| *d.borrow_mut() = Some(dir.to_path_buf()));
     crate::store::engagements::TEST_DB_DIR.with(|d| *d.borrow_mut() = Some(dir.to_path_buf()));
     crate::store::findings::TEST_DB_DIR.with(|d| *d.borrow_mut() = Some(dir.to_path_buf()));
     crate::store::evidence::TEST_DB_DIR.with(|d| *d.borrow_mut() = Some(dir.to_path_buf()));

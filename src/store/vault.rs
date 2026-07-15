@@ -203,6 +203,11 @@ pub fn list_entry_names(user_id: i64) -> Result<Vec<(i64, String)>> {
     Ok(names)
 }
 
+pub fn get_entry_by_name(user_id: i64, key: &VaultKey, name: &str) -> Result<Option<VaultEntry>> {
+    let entries = list_entries(user_id, key)?;
+    Ok(entries.into_iter().find(|e| e.name.eq_ignore_ascii_case(name)))
+}
+
 pub fn get_password(user_id: i64, key: &VaultKey, id: i64) -> Result<Option<String>> {
     let conn = open_db()?;
     let row = conn.query_row(

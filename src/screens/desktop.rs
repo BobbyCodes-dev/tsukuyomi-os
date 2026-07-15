@@ -176,10 +176,18 @@ pub const APPS: &[AppEntry] = &[
     AppEntry {
         id: "settings",
         name: "Settings",
-        description: "Configure Tsukuyomi OS.",
+        description: "Configure timezone, theme, and security preferences.",
         icon: "\u{2699}",
         category: "System",
         sensitive: false,
+    },
+    AppEntry {
+        id: "ai_agent",
+        name: "AI Agent",
+        description: "Chat with an LLM and dispatch OS actions.",
+        icon: "\u{1F916}",
+        category: "Security",
+        sensitive: true,
     },
 ];
 
@@ -325,6 +333,7 @@ fn launch_selected(state: &mut DesktopState) -> Action {
         "findings" => Action::ToFindings,
         "evidence" => Action::ToEvidence,
         "cve" => Action::ToCve,
+        "ai_agent" => Action::ToAiAgent,
         "browser" => {
             launch_external::open_browser();
             state.log_status("Browser opened externally.");

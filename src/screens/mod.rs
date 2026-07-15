@@ -1,3 +1,4 @@
+pub mod ai_agent;
 pub mod assets;
 pub mod backups;
 pub mod connect;

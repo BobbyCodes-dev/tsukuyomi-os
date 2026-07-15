@@ -32,6 +32,7 @@ pub enum Screen {
     Findings(screens::findings::FindingsState),
     Evidence(screens::evidence::EvidenceState),
     Cve(screens::cve::CveState),
+    AiAgent(screens::ai_agent::AiAgentState),
 }
 
 impl Screen {
@@ -57,10 +58,12 @@ impl Screen {
             Screen::Findings(_) => "Tsukuyomi OS - Findings / Reports",
             Screen::Evidence(_) => "Tsukuyomi OS - Evidence Vault",
             Screen::Cve(_) => "Tsukuyomi OS - CVE Lookup",
+            Screen::AiAgent(_) => "Tsukuyomi OS - AI Agent",
         }
     }
 }
 
+#[derive(Debug)]
 pub enum Action {
     None,
     Quit,
@@ -84,6 +87,7 @@ pub enum Action {
     ToFindings,
     ToEvidence,
     ToCve,
+    ToAiAgent,
     Back,
 }
 
@@ -187,6 +191,13 @@ impl App {
                     self.screen = Screen::Cve(screens::cve::CveState::new(user.id));
                 }
             }
+            Action::ToAiAgent => {
+                if let (Some(user), Some(key)) = (self.current_user.clone(), self.vault_key) {
+                    self.screen = Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key));
+                } else if let Some(desktop) = &mut self.desktop {
+                    desktop.log_status("AI Agent unavailable: unable to derive encryption key.");
+                }
+            }
             Action::Back => self.screen = Screen::Desktop,
         }
         self.set_window_title();
@@ -225,6 +236,7 @@ impl App {
             Screen::Findings(state) => screens::findings::handle_key(state, key),
             Screen::Evidence(state) => screens::evidence::handle_key(state, key),
             Screen::Cve(state) => screens::cve::handle_key(state, key),
+            Screen::AiAgent(state) => screens::ai_agent::handle_key(state, key),
         };
         self.apply(action);
     }
@@ -256,6 +268,7 @@ impl App {
             Screen::Findings(state) => screens::findings::draw(frame, area, state),
             Screen::Evidence(state) => screens::evidence::draw(frame, area, state),
             Screen::Cve(state) => screens::cve::draw(frame, area, state),
+            Screen::AiAgent(state) => screens::ai_agent::draw(frame, area, state),
         }
     }
 
@@ -302,6 +315,10 @@ impl App {
 
             if let Screen::Cve(state) = &mut self.screen {
                 state.poll_fetch();
+            }
+
+            if let Screen::AiAgent(state) = &mut self.screen {
+                state.poll();
             }
         }
         Ok(())
