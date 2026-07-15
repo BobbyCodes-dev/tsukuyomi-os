@@ -53,7 +53,12 @@ impl AiAgentState {
             vault_key,
             messages: vec![Message {
                 role: "system".to_string(),
-                text: "You are Tsukuyomi AI, an assistant inside a local security-focused OS. You can open apps and answer questions about the OS.".to_string(),
+                text: "You are Tsukuyomi AI, an assistant embedded in Tsukuyomi OS, a local security-focused terminal desktop. \
+Answer in plain, direct sentences. Do not format answers as bullet points or numbered lists unless the user explicitly asks for a list. \
+Saved credentials (usernames, passwords, notes) live in the Credential Vault app, encrypted with AES-256-GCM using a key derived from the \
+user's login password; nothing is stored in plaintext. You can open apps and describe the current screen using your tools \
+(list_os_apps, open_app, describe_screen) — use them when a question is about what's on this OS or where something lives, \
+rather than guessing.".to_string(),
             }],
             input: widgets::TextField::new(),
             scroll: 0,
@@ -223,11 +228,40 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &AiAgentState) {
     draw_status(frame, chunks[2], state);
 }
 
+fn wrapped_row_count(text: &str, width: u16) -> usize {
+    let width = (width as usize).max(1);
+    let mut rows = 0usize;
+    for raw_line in text.split('\n') {
+        let mut current = 0usize;
+        let mut any_word = false;
+        for word in raw_line.split_whitespace() {
+            any_word = true;
+            let mut word_len = word.chars().count();
+            let fits_current_row = current > 0 && current + 1 + word_len <= width;
+            if fits_current_row {
+                current += 1 + word_len;
+                continue;
+            }
+            rows += 1;
+            while word_len > width {
+                rows += 1;
+                word_len -= width;
+            }
+            current = word_len;
+        }
+        if !any_word {
+            rows += 1;
+        }
+    }
+    rows.max(1)
+}
+
 fn draw_messages(frame: &mut Frame, area: Rect, state: &AiAgentState) {
     let block = widgets::log_block("AI Agent Chat");
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let mut lines: Vec<Line> = Vec::new();
+    let mut total_rows = 0usize;
     for msg in &state.messages {
         if msg.role == "system" {
             continue;
@@ -238,11 +272,13 @@ fn draw_messages(frame: &mut Frame, area: Rect, state: &AiAgentState) {
             "tool" => ("Tool", theme::MUTED),
             _ => ("?", theme::MUTED),
         };
-        let prefix = Span::styled(format!("{}: ", label), Style::default().fg(color).add_modifier(Modifier::BOLD));
+        let prefix_str = format!("{label}: ");
+        let prefix = Span::styled(prefix_str.clone(), Style::default().fg(color).add_modifier(Modifier::BOLD));
         let text = Span::raw(&msg.text);
         lines.push(Line::from(vec![prefix, text]));
+        total_rows += wrapped_row_count(&format!("{prefix_str}{}", msg.text), inner.width);
     }
-    let max_scroll = (lines.len() as u16).saturating_sub(inner.height);
+    let max_scroll = (total_rows as u16).saturating_sub(inner.height);
     let scroll = state.scroll.min(max_scroll);
     let para = Paragraph::new(lines)
         .wrap(Wrap { trim: false })
