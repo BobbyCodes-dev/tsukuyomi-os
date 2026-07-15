@@ -139,6 +139,40 @@ pub fn add_entry(
     Ok(())
 }
 
+pub fn upsert_entry_by_name(
+    user_id: i64,
+    key: &VaultKey,
+    name: &str,
+    username: &str,
+    password: &str,
+    notes: &str,
+) -> Result<()> {
+    let (nonce, ciphertext) = encrypt_secret(key, password, notes)?;
+    let conn = open_db()?;
+    let existing_id: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM vault_entries WHERE user_id = ?1 AND name = ?2",
+            params![user_id, name],
+            |row| row.get(0),
+        )
+        .ok();
+    match existing_id {
+        Some(id) => {
+            conn.execute(
+                "UPDATE vault_entries SET username = ?1, nonce = ?2, ciphertext = ?3 WHERE id = ?4 AND user_id = ?5",
+                params![username, nonce, ciphertext, id, user_id],
+            )?;
+        }
+        None => {
+            conn.execute(
+                "INSERT INTO vault_entries (user_id, name, username, nonce, ciphertext) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![user_id, name, username, nonce, ciphertext],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 pub fn update_entry(
     user_id: i64,
     key: &VaultKey,

@@ -37,6 +37,11 @@ These tools are hidden on the desktop launcher by default. Enable **Show Securit
 - **Findings / Report Builder** — engagement-linked findings with severity/status, markdown preview, and file export
 - **Evidence Vault** — text-only encrypted evidence entries using the same AES-GCM vault as credentials
 - **CVE Lookup** — manual CVE entries with optional NVD API refresh; offline-first
+- **AI Agent** — chat with Anthropic, OpenAI-compatible, Gemini, local Ollama, or Ollama Cloud models, with tool calling to open other apps in the OS. Opens in its own window (its own login, since there's no shared session). Provider, model, endpoint, and API key are configured in Settings, where switching providers auto-fills a default endpoint and fetches that provider's available models.
+
+Note: model/endpoint discovery in Settings is a synchronous network call — switching providers or tabbing off the API Key field can briefly freeze the UI for up to ~6s if the endpoint is slow or unreachable before it falls back to a default.
+
+`tsukuyomi.exe` itself stays a single self-contained binary — no bundled runtime or DLLs to ship. The one exception is local Ollama for the AI Agent: it's a separate multi-gigabyte model runtime that can't be embedded in the exe. Tsukuyomi handles it for you instead of making you do it by hand: selecting **Ollama (local)** in Settings auto-starts it if it's already installed but not running, and if it isn't installed at all, pressing `i` on the Provider field downloads the official installer and launches it. Cloud providers (Anthropic, OpenAI-compatible, Gemini, Ollama Cloud) need nothing extra — they're plain HTTPS calls.
 
 ## Install
 

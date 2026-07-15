@@ -17,6 +17,15 @@ pub fn open_terminal() {
         .spawn();
 }
 
+pub fn open_ai_agent_window() {
+    if let Ok(exe) = std::env::current_exe() {
+        let exe_str = exe.display().to_string();
+        let _ = Command::new("cmd")
+            .args(["/C", "start", "Tsukuyomi OS - AI Agent", &exe_str, "ai-agent"])
+            .spawn();
+    }
+}
+
 pub fn open_files() {
     if let Some(home) = home_dir() {
         let _ = Command::new("explorer.exe").arg(home).spawn();

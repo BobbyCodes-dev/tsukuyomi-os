@@ -333,7 +333,11 @@ fn launch_selected(state: &mut DesktopState) -> Action {
         "findings" => Action::ToFindings,
         "evidence" => Action::ToEvidence,
         "cve" => Action::ToCve,
-        "ai_agent" => Action::ToAiAgent,
+        "ai_agent" => {
+            launch_external::open_ai_agent_window();
+            state.log_status("AI Agent opened in a new window. Log in there too.");
+            Action::None
+        }
         "browser" => {
             launch_external::open_browser();
             state.log_status("Browser opened externally.");

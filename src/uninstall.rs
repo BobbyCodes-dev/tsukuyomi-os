@@ -17,7 +17,7 @@ fn display_path(p: &std::path::Path) -> String {
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
 }
 
-pub fn nuke(args: UninstallArgs) -> Result<()> {
+fn discover_targets() -> BTreeSet<PathBuf> {
     let mut targets: Vec<PathBuf> = vec![crate::store::data_dir()];
     if let Some(home) = home_dir() {
         targets.push(home.join("AppData").join("Local").join("TsukuyomiOS"));
@@ -30,6 +30,51 @@ pub fn nuke(args: UninstallArgs) -> Result<()> {
             existing.insert(t.canonicalize().unwrap_or_else(|_| t.clone()));
         }
     }
+    existing
+}
+
+fn is_exe(p: &std::path::Path) -> bool {
+    p.extension().map(|e| e.eq_ignore_ascii_case("exe")).unwrap_or(false)
+}
+
+fn remove_data_preserving_exe(p: &std::path::Path, keep_vms: bool) -> Vec<String> {
+    let mut messages = Vec::new();
+    if p.is_dir() {
+        let vm_dir = p.join("vm");
+        if let Ok(entries) = std::fs::read_dir(p) {
+            for entry in entries.flatten() {
+                let entry_path = entry.path();
+                if is_exe(&entry_path) {
+                    continue;
+                }
+                if keep_vms && entry_path == vm_dir {
+                    continue;
+                }
+                if entry_path.is_dir() {
+                    let _ = std::fs::remove_dir_all(&entry_path);
+                } else {
+                    let _ = std::fs::remove_file(&entry_path);
+                }
+            }
+        }
+        let suffix = if keep_vms { " (preserved vm/ and any .exe)" } else { " (preserved any .exe)" };
+        messages.push(format!("Removed data from: {}{}", display_path(p), suffix));
+    } else if is_exe(p) {
+        messages.push(format!("Preserved: {}", display_path(p)));
+    } else {
+        match std::fs::remove_file(p) {
+            Ok(()) => messages.push(format!("Removed: {}", display_path(p))),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                messages.push(format!("Removed: {}", display_path(p)))
+            }
+            Err(e) => messages.push(format!("Failed to remove {}: {e}", display_path(p))),
+        }
+    }
+    messages
+}
+
+pub fn nuke(args: UninstallArgs) -> Result<()> {
+    let existing = discover_targets();
 
     if existing.is_empty() {
         println!("Tsukuyomi OS data not found. Nothing to remove.");
@@ -53,43 +98,24 @@ pub fn nuke(args: UninstallArgs) -> Result<()> {
     }
 
     for p in &existing {
-        if p.is_dir() {
-            if args.keep_vms {
-                let vm_dir = p.join("vm");
-                if let Ok(entries) = std::fs::read_dir(p) {
-                    for entry in entries.flatten() {
-                        let entry_path = entry.path();
-                        if entry_path == vm_dir {
-                            continue;
-                        }
-                        if entry_path.is_dir() {
-                            let _ = std::fs::remove_dir_all(&entry_path);
-                        } else {
-                            let _ = std::fs::remove_file(&entry_path);
-                        }
-                    }
-                }
-                if vm_dir.exists() {
-                    println!("Removed: {} (preserved vm/)", display_path(p));
-                } else {
-                    let _ = std::fs::remove_dir_all(p);
-                    println!("Removed: {}", display_path(p));
-                }
-                continue;
-            }
-            let _ = std::fs::remove_dir_all(p);
-            println!("Removed: {}", display_path(p));
-        } else {
-            match std::fs::remove_file(p) {
-                Ok(()) => println!("Removed: {}", display_path(p)),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    println!("Removed: {}", display_path(p))
-                }
-                Err(e) => println!("Failed to remove {}: {e}", display_path(p)),
-            }
+        for line in remove_data_preserving_exe(p, args.keep_vms) {
+            println!("{line}");
         }
     }
 
     println!("Tsukuyomi OS has been removed from this machine.");
     Ok(())
+}
+
+pub fn nuke_data(keep_vms: bool) -> Vec<String> {
+    let existing = discover_targets();
+    if existing.is_empty() {
+        return vec!["Tsukuyomi OS data not found. Nothing to remove.".to_string()];
+    }
+    let mut messages = Vec::new();
+    for p in &existing {
+        messages.extend(remove_data_preserving_exe(p, keep_vms));
+    }
+    messages.push("Tsukuyomi OS data has been erased.".to_string());
+    messages
 }

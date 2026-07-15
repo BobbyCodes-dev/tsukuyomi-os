@@ -10,6 +10,7 @@ pub enum ProviderKind {
     OpenAiCompatible,
     Gemini,
     Ollama,
+    OllamaCloud,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,7 +72,7 @@ fn ensure_schema(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-pub fn save_provider(user_id: i64, provider: &AiProvider) -> Result<()> {
+pub fn save_provider(user_id: i64, provider: &AiProvider) -> Result<i64> {
     let _ = user_id;
     let conn = open_db()?;
     if provider.id == 0 {
@@ -86,6 +87,7 @@ pub fn save_provider(user_id: i64, provider: &AiProvider) -> Result<()> {
                 provider.is_default as i64
             ],
         )?;
+        Ok(conn.last_insert_rowid())
     } else {
         conn.execute(
             "UPDATE ai_providers SET kind=?1, model=?2, endpoint=?3, vault_label=?4, is_default=?5
@@ -99,8 +101,8 @@ pub fn save_provider(user_id: i64, provider: &AiProvider) -> Result<()> {
                 provider.id
             ],
         )?;
+        Ok(provider.id)
     }
-    Ok(())
 }
 
 pub fn load_provider(_user_id: i64) -> Result<Option<AiProvider>> {

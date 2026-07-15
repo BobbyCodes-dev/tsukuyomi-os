@@ -1,5 +1,6 @@
 mod app;
 mod launch_external;
+mod ollama_setup;
 mod rustdesk;
 mod scan;
 mod screens;
@@ -32,6 +33,7 @@ enum Commands {
         #[arg(long)]
         yes: bool,
     },
+    AiAgent,
 }
 
 fn main() -> Result<()> {
@@ -40,11 +42,12 @@ fn main() -> Result<()> {
         Some(Commands::Uninstall { keep_vms, yes }) => {
             uninstall::nuke(uninstall::UninstallArgs { keep_vms, yes })
         }
-        None => run_tui(),
+        Some(Commands::AiAgent) => run_tui(true),
+        None => run_tui(false),
     }
 }
 
-fn run_tui() -> Result<()> {
+fn run_tui(start_ai_agent: bool) -> Result<()> {
     enable_raw_mode()?;
     execute!(stdout(), EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout());
@@ -57,7 +60,7 @@ fn run_tui() -> Result<()> {
         default_panic(info);
     }));
 
-    let mut app = app::App::new()?;
+    let mut app = app::App::new(start_ai_agent)?;
     let result = app.run(&mut terminal);
 
     disable_raw_mode()?;

@@ -87,7 +87,6 @@ pub enum Action {
     ToFindings,
     ToEvidence,
     ToCve,
-    ToAiAgent,
     Back,
 }
 
@@ -97,10 +96,11 @@ pub struct App {
     pub current_user: Option<User>,
     pub vault_key: Option<[u8; 32]>,
     pub should_quit: bool,
+    start_ai_agent: bool,
 }
 
 impl App {
-    pub fn new() -> Result<Self> {
+    pub fn new(start_ai_agent: bool) -> Result<Self> {
         let mut settings = crate::store::settings::load_settings();
         let existing_users = crate::store::users::list_users()?;
         let screen = if !settings.onboarded || existing_users.is_empty() {
@@ -111,7 +111,14 @@ impl App {
         } else {
             Screen::Login(screens::login::LoginState::new())
         };
-        Ok(App { screen, desktop: None, current_user: None, vault_key: None, should_quit: false })
+        Ok(App {
+            screen,
+            desktop: None,
+            current_user: None,
+            vault_key: None,
+            should_quit: false,
+            start_ai_agent,
+        })
     }
 
     fn apply(&mut self, action: Action) {
@@ -122,12 +129,23 @@ impl App {
             Action::ToLogin => self.screen = Screen::Login(screens::login::LoginState::new()),
             Action::LoggedIn(user, password) => {
                 self.vault_key = crate::store::vault::derive_key(user.id, &password).ok();
-                self.current_user = Some(user);
                 self.desktop = Some(screens::desktop::DesktopState::new());
-                self.screen = Screen::Desktop;
+                self.screen = if self.start_ai_agent {
+                    match self.vault_key {
+                        Some(key) => Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key)),
+                        None => Screen::Desktop,
+                    }
+                } else {
+                    Screen::Desktop
+                };
+                self.start_ai_agent = false;
+                self.current_user = Some(user);
             }
             Action::ToSandbox => self.screen = Screen::Sandbox(screens::sandbox::SandboxState::new()),
-            Action::ToSettings => self.screen = Screen::Settings(screens::settings::SettingsState::default()),
+            Action::ToSettings => {
+                let user_id = self.current_user.as_ref().map(|u| u.id).unwrap_or(0);
+                self.screen = Screen::Settings(screens::settings::SettingsState::new(user_id, self.vault_key));
+            }
             Action::ToVault => {
                 if let (Some(user), Some(key)) = (self.current_user.clone(), self.vault_key) {
                     self.screen = Screen::Vault(screens::vault::VaultState::new(user.id, key));
@@ -189,13 +207,6 @@ impl App {
             Action::ToCve => {
                 if let Some(user) = self.current_user.clone() {
                     self.screen = Screen::Cve(screens::cve::CveState::new(user.id));
-                }
-            }
-            Action::ToAiAgent => {
-                if let (Some(user), Some(key)) = (self.current_user.clone(), self.vault_key) {
-                    self.screen = Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key));
-                } else if let Some(desktop) = &mut self.desktop {
-                    desktop.log_status("AI Agent unavailable: unable to derive encryption key.");
                 }
             }
             Action::Back => self.screen = Screen::Desktop,

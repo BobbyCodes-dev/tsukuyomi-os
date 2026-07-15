@@ -39,6 +39,80 @@ pub trait AiClient: Send + Sync {
     ) -> Result<AiResponse>;
 }
 
+pub fn fetch_models_blocking(kind: ProviderKind, endpoint: &str, api_key: &str) -> Result<Vec<String>> {
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(6))
+        .build()?;
+    match kind {
+        ProviderKind::Anthropic => {
+            let resp = client
+                .get("https://api.anthropic.com/v1/models")
+                .header("x-api-key", api_key)
+                .header("anthropic-version", "2023-06-01")
+                .send()?;
+            if !resp.status().is_success() {
+                anyhow::bail!("{}", resp.status());
+            }
+            let data: Value = resp.json()?;
+            Ok(data["data"]
+                .as_array()
+                .map(|arr| arr.iter().filter_map(|m| m["id"].as_str().map(str::to_string)).collect())
+                .unwrap_or_default())
+        }
+        ProviderKind::OpenAiCompatible => {
+            let base = endpoint.trim_end_matches("/chat/completions").trim_end_matches('/');
+            let resp = client.get(format!("{base}/models")).bearer_auth(api_key).send()?;
+            if !resp.status().is_success() {
+                anyhow::bail!("{}", resp.status());
+            }
+            let data: Value = resp.json()?;
+            Ok(data["data"]
+                .as_array()
+                .map(|arr| arr.iter().filter_map(|m| m["id"].as_str().map(str::to_string)).collect())
+                .unwrap_or_default())
+        }
+        ProviderKind::Gemini => {
+            let resp = client.get(format!("{endpoint}?key={api_key}")).send()?;
+            if !resp.status().is_success() {
+                anyhow::bail!("{}", resp.status());
+            }
+            let data: Value = resp.json()?;
+            Ok(data["models"]
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|m| m["name"].as_str().map(|s| s.trim_start_matches("models/").to_string()))
+                        .collect()
+                })
+                .unwrap_or_default())
+        }
+        ProviderKind::Ollama => {
+            let base = endpoint.trim_end_matches("/api/chat").trim_end_matches('/');
+            let resp = client.get(format!("{base}/api/tags")).send()?;
+            if !resp.status().is_success() {
+                anyhow::bail!("{}", resp.status());
+            }
+            let data: Value = resp.json()?;
+            Ok(data["models"]
+                .as_array()
+                .map(|arr| arr.iter().filter_map(|m| m["name"].as_str().map(str::to_string)).collect())
+                .unwrap_or_default())
+        }
+        ProviderKind::OllamaCloud => {
+            let base = endpoint.trim_end_matches("/api/chat").trim_end_matches('/');
+            let resp = client.get(format!("{base}/api/tags")).bearer_auth(api_key).send()?;
+            if !resp.status().is_success() {
+                anyhow::bail!("{}", resp.status());
+            }
+            let data: Value = resp.json()?;
+            Ok(data["models"]
+                .as_array()
+                .map(|arr| arr.iter().filter_map(|m| m["name"].as_str().map(str::to_string)).collect())
+                .unwrap_or_default())
+        }
+    }
+}
+
 pub fn build_client(provider: &AiProvider, api_key: &str) -> Box<dyn AiClient> {
     match provider.kind {
         ProviderKind::Anthropic => Box::new(AnthropicClient {
@@ -55,6 +129,12 @@ pub fn build_client(provider: &AiProvider, api_key: &str) -> Box<dyn AiClient> {
         ProviderKind::Ollama => Box::new(OllamaClient {
             endpoint: provider.endpoint.clone(),
             model: provider.model.clone(),
+            api_key: None,
+        }),
+        ProviderKind::OllamaCloud => Box::new(OllamaClient {
+            endpoint: provider.endpoint.clone(),
+            model: provider.model.clone(),
+            api_key: Some(api_key.to_string()),
         }),
     }
 }
@@ -278,6 +358,7 @@ fn parse_openai_response(data: &Value) -> Result<AiResponse> {
 struct OllamaClient {
     endpoint: String,
     model: String,
+    api_key: Option<String>,
 }
 
 #[async_trait::async_trait]
@@ -285,36 +366,59 @@ impl AiClient for OllamaClient {
     async fn complete(
         &self,
         messages: &[ChatMessage],
-        _tools: &[ToolDefinition],
+        tools: &[ToolDefinition],
     ) -> Result<AiResponse> {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(120))
             .build()?;
-        let body = serde_json::json!({
+        let mut body = serde_json::json!({
             "model": self.model,
             "messages": messages,
             "stream": false,
         });
-        let resp = client
-            .post(&self.endpoint)
-            .header("content-type", "application/json")
-            .json(&body)
-            .send()
-            .await?;
+        if !tools.is_empty() {
+            let tool_specs: Vec<Value> = tools
+                .iter()
+                .map(|t| {
+                    serde_json::json!({
+                        "type": "function",
+                        "function": {
+                            "name": t.name,
+                            "description": t.description,
+                            "parameters": t.parameters
+                        }
+                    })
+                })
+                .collect();
+            body["tools"] = Value::Array(tool_specs);
+        }
+        let mut req = client.post(&self.endpoint).header("content-type", "application/json");
+        if let Some(key) = &self.api_key {
+            req = req.bearer_auth(key);
+        }
+        let resp = req.json(&body).send().await?;
         if !resp.status().is_success() {
             let text = resp.text().await.unwrap_or_default();
             anyhow::bail!("Ollama error: {}", text);
         }
         let data: Value = resp.json().await?;
-        let content = data["message"]["content"]
-            .as_str()
-            .unwrap_or("")
-            .to_string();
-        Ok(AiResponse {
-            content,
-            tool_calls: Vec::new(),
-        })
+        parse_ollama_response(&data)
     }
+}
+
+fn parse_ollama_response(data: &Value) -> Result<AiResponse> {
+    let content = data["message"]["content"].as_str().unwrap_or("").to_string();
+    let mut tool_calls = Vec::new();
+    if let Some(calls) = data["message"]["tool_calls"].as_array() {
+        for (i, call) in calls.iter().enumerate() {
+            tool_calls.push(ToolCall {
+                id: format!("ollama-{i}"),
+                name: call["function"]["name"].as_str().unwrap_or("").to_string(),
+                arguments: call["function"]["arguments"].clone(),
+            });
+        }
+    }
+    Ok(AiResponse { content, tool_calls })
 }
 
 #[allow(dead_code)]

@@ -40,6 +40,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &LoginState) {
     let mut lines = vec![
         Line::styled("Tsukuyomi OS", theme::title_style()),
         Line::styled("Terminal-based personal OS shell", theme::subtitle_style()),
+        Line::styled(format!("v{}", env!("CARGO_PKG_VERSION")), theme::hint_style()),
         Line::raw(""),
         field_line("Username", state.username.display(), state.focus == 0),
         field_line("Password", state.password.display(), state.focus == 1),
