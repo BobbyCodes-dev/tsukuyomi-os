@@ -30,7 +30,11 @@ pub const DATE_FORMATS: &[(&str, &str)] = &[
     ("Mon DD, YYYY", "%b %d, %Y"),
 ];
 
-const FIELD_COUNT: usize = 9;
+const FIELD_COUNT: usize = 10;
+const AGREE_FIELD: usize = 9;
+
+const TERMS_TEXT: &str = include_str!("../../TERMS.md");
+const PRIVACY_TEXT: &str = include_str!("../../PRIVACY.md");
 
 pub struct SetupState {
     pub username: widgets::TextField,
@@ -42,6 +46,9 @@ pub struct SetupState {
     pub language: widgets::TextField,
     pub time_format_idx: usize,
     pub date_format_idx: usize,
+    pub agree_terms: bool,
+    pub show_legal: bool,
+    pub legal_scroll: u16,
     pub focus: usize,
     pub error: String,
 }
@@ -63,6 +70,9 @@ impl Default for SetupState {
             language: widgets::TextField::with_value(s.language),
             time_format_idx,
             date_format_idx,
+            agree_terms: false,
+            show_legal: false,
+            legal_scroll: 0,
             focus: 0,
             error: String::new(),
         }
@@ -76,10 +86,18 @@ fn field_line(label: &str, value: String, focused: bool) -> Line<'static> {
 }
 
 pub fn draw(frame: &mut Frame, area: Rect, state: &SetupState) {
-    let rect = widgets::centered_fixed(60, area.height.min(24), area);
+    if state.show_legal {
+        draw_legal(frame, area, state);
+        return;
+    }
+
+    let rect = widgets::centered_fixed(60, area.height.min(26), area);
     let block = widgets::form_block("");
     let inner = block.inner(rect);
     frame.render_widget(block, rect);
+
+    let agree_style = if state.focus == AGREE_FIELD { theme::focused_field_style() } else { Style::default() };
+    let agree_prefix = if state.focus == AGREE_FIELD { "> " } else { "  " };
 
     let mut lines = vec![
         Line::styled("Tsukuyomi OS Setup", theme::title_style()),
@@ -103,6 +121,18 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &SetupState) {
             state.focus == 8,
         ),
         Line::raw(""),
+        Line::from(vec![
+            Span::styled(
+                format!("{agree_prefix}I agree to the Terms of Service & Privacy Policy: "),
+                agree_style,
+            ),
+            Span::raw(if state.agree_terms { "yes" } else { "no" }),
+        ]),
+        Line::styled(
+            "  Press 'v' on that field to read the full text before agreeing.",
+            theme::hint_style(),
+        ),
+        Line::raw(""),
         Line::styled(
             "Tab/Shift+Tab: move  Left/Right: change  Enter: create account  Esc: quit",
             theme::hint_style(),
@@ -113,6 +143,16 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &SetupState) {
     }
 
     frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
+}
+
+fn draw_legal(frame: &mut Frame, area: Rect, state: &SetupState) {
+    let block = widgets::form_block("Terms of Service & Privacy Policy (Esc: back, Up/Down: scroll)");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let full_text = format!("{TERMS_TEXT}\n\n{PRIVACY_TEXT}");
+    let lines: Vec<Line> = full_text.lines().map(|l| Line::raw(l.to_string())).collect();
+    let para = Paragraph::new(lines).wrap(Wrap { trim: false }).scroll((state.legal_scroll, 0));
+    frame.render_widget(para, inner);
 }
 
 fn try_submit(state: &mut SetupState) -> Action {
@@ -135,6 +175,11 @@ fn try_submit(state: &mut SetupState) -> Action {
     } else {
         state.display_name.value.trim().to_string()
     };
+
+    if !state.agree_terms {
+        state.error = "You must agree to the Terms of Service & Privacy Policy to continue.".to_string();
+        return Action::None;
+    }
 
     match users::create_user(&username, &state.password.value, &display, "admin") {
         Ok(true) => {}
@@ -171,6 +216,16 @@ fn try_submit(state: &mut SetupState) -> Action {
 }
 
 pub fn handle_key(state: &mut SetupState, key: KeyEvent) -> Action {
+    if state.show_legal {
+        match key.code {
+            KeyCode::Esc => state.show_legal = false,
+            KeyCode::Up => state.legal_scroll = state.legal_scroll.saturating_sub(1),
+            KeyCode::Down => state.legal_scroll = state.legal_scroll.saturating_add(1),
+            _ => {}
+        }
+        return Action::None;
+    }
+
     match key.code {
         KeyCode::Esc => Action::Quit,
         KeyCode::Tab | KeyCode::Down => {
@@ -179,6 +234,15 @@ pub fn handle_key(state: &mut SetupState, key: KeyEvent) -> Action {
         }
         KeyCode::BackTab | KeyCode::Up => {
             state.focus = (state.focus + FIELD_COUNT - 1) % FIELD_COUNT;
+            Action::None
+        }
+        KeyCode::Char('v') if state.focus == AGREE_FIELD => {
+            state.show_legal = true;
+            state.legal_scroll = 0;
+            Action::None
+        }
+        KeyCode::Left | KeyCode::Right if state.focus == AGREE_FIELD => {
+            state.agree_terms = !state.agree_terms;
             Action::None
         }
         KeyCode::Left if state.focus == 4 => {

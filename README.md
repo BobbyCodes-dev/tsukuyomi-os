@@ -61,7 +61,7 @@ Delete `tsukuyomi.exe` and remove `%LOCALAPPDATA%\TsukuyomiOS` if you want to re
 
 ### Release Format
 
-This repository is for development. The public release is a single prebuilt `tsukuyomi.exe` file only. Source code and build files are not released.
+This repository is for development. Public releases are published at [BobbyCodes-dev/tsukuyomi-os](https://github.com/BobbyCodes-dev/tsukuyomi-os) as a single prebuilt `tsukuyomi.exe` file only. Source code and build files are not released.
 
 ## Security & Privacy Notes
 
@@ -71,4 +71,4 @@ This repository is for development. The public release is a single prebuilt `tsu
 
 ## License
 
-See the `LICENSE` file included in the release package.
+Freeware — see [LICENSE](LICENSE).
