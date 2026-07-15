@@ -1,6 +1,6 @@
 [package]
 name = "tsukuyomi-os"
-version = "26.15.7"
+version = "26.15.7-beta"
 edition = "2021"
 description = "Tsukuyomi OS - terminal-based personal OS shell with native VM sandbox"
 
