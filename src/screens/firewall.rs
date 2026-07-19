@@ -89,6 +89,9 @@ impl FirewallState {
     }
 }
 
+// ── Windows: PowerShell NetFirewall ─────────────────────────────
+
+#[cfg(windows)]
 fn run_powershell(script: &str) -> Result<String, String> {
     let output = Command::new("powershell")
         .args(["-NoProfile", "-Command", script])
@@ -105,6 +108,7 @@ fn run_powershell(script: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+#[cfg(windows)]
 fn query_rules() -> Result<Vec<FirewallRule>, String> {
     let script = "Get-NetFirewallRule | ForEach-Object { \"$($_.Name)|$($_.DisplayName)|$($_.Direction)|$($_.Action)|$($_.Enabled)\" }";
     let output = Command::new("powershell")
@@ -119,20 +123,20 @@ fn query_rules() -> Result<Vec<FirewallRule>, String> {
     let mut rules = Vec::new();
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
+        if line.is_empty() { continue; }
         let mut parts = line.splitn(5, '|');
-        let name = parts.next().unwrap_or("").to_string();
-        let display_name = parts.next().unwrap_or("").to_string();
-        let direction = parts.next().unwrap_or("").to_string();
-        let action = parts.next().unwrap_or("").to_string();
-        let enabled = parts.next().unwrap_or("").to_string();
-        rules.push(FirewallRule { name, display_name, direction, action, enabled });
+        rules.push(FirewallRule {
+            name: parts.next().unwrap_or("").to_string(),
+            display_name: parts.next().unwrap_or("").to_string(),
+            direction: parts.next().unwrap_or("").to_string(),
+            action: parts.next().unwrap_or("").to_string(),
+            enabled: parts.next().unwrap_or("").to_string(),
+        });
     }
     Ok(rules)
 }
 
+#[cfg(windows)]
 fn set_rule_enabled(name: &str, enable: bool) -> Result<(), String> {
     let escaped = name.replace('\'', "''");
     let cmd = if enable {
@@ -143,6 +147,7 @@ fn set_rule_enabled(name: &str, enable: bool) -> Result<(), String> {
     run_powershell(&cmd).map(|_| ())
 }
 
+#[cfg(windows)]
 fn add_rule(name: &str, direction: &str, action: &str, protocol: &str, port: &str) -> Result<(), String> {
     let escaped_name = name.replace('\'', "''");
     let mut cmd = format!(
@@ -158,6 +163,203 @@ fn add_rule(name: &str, direction: &str, action: &str, protocol: &str, port: &st
     }
     run_powershell(&cmd).map(|_| ())
 }
+
+// ── Linux: ufw / iptables ───────────────────────────────────────
+
+#[cfg(unix)]
+fn run_cmd(program: &str, args: &[&str]) -> Result<String, String> {
+    let output = Command::new(program)
+        .args(args)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            "Operation failed — this likely requires running Tsukuyomi OS as root/sudo.".to_string()
+        } else {
+            stderr
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[cfg(unix)]
+fn has_ufw() -> bool {
+    Command::new("which")
+        .arg("ufw")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+#[cfg(unix)]
+fn query_rules() -> Result<Vec<FirewallRule>, String> {
+    if has_ufw() {
+        let output = Command::new("ufw")
+            .args(["status", "verbose"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            // ufw may require root — try with sudo
+            let output = Command::new("sudo")
+                .args(["ufw", "status", "verbose"])
+                .output()
+                .map_err(|e| e.to_string())?;
+            if !output.status.success() {
+                return Err("ufw status failed — run as root/sudo".to_string());
+            }
+            return parse_ufw_rules(&String::from_utf8_lossy(&output.stdout));
+        }
+        parse_ufw_rules(&String::from_utf8_lossy(&output.stdout))
+    } else {
+        // Fall back to iptables -L
+        let output = Command::new("iptables")
+            .args(["-L", "--line-numbers", "-n"])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            return Err("Neither ufw nor iptables accessible — install ufw or run as root".to_string());
+        }
+        parse_iptables_rules(&String::from_utf8_lossy(&output.stdout))
+    }
+}
+
+#[cfg(unix)]
+fn parse_ufw_rules(stdout: &str) -> Result<Vec<FirewallRule>, String> {
+    let mut rules = Vec::new();
+    for line in stdout.lines() {
+        let line = line.trim();
+        // Skip headers and blank lines
+        if line.is_empty() || line.starts_with("Status:") || line.starts_with("Logging") || line.contains("Default:") {
+            continue;
+        }
+        // Parse lines like: "22/tcp                     ALLOW IN    Anywhere"
+        // or "80/tcp (v6)                DENY IN     Anywhere (v6)"
+        if line.contains("ALLOW") || line.contains("DENY") || line.contains("LIMIT") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 3 {
+                let port_proto = parts.get(0).unwrap_or(&"").to_string();
+                let action_str = parts.get(1).unwrap_or(&"").to_string();
+                let direction = if line.contains("IN") { "Inbound" }
+                    else if line.contains("OUT") { "Outbound" }
+                    else { "Inbound" };
+                let action = if action_str.contains("ALLOW") || action_str.contains("LIMIT") { "Allow" }
+                    else { "Block" };
+                let enabled = if line.contains("(deny)") || line.contains("(reject)") { "False" }
+                    else { "True" };
+                rules.push(FirewallRule {
+                    name: port_proto.clone(),
+                    display_name: port_proto,
+                    direction: direction.to_string(),
+                    action: action.to_string(),
+                    enabled: enabled.to_string(),
+                });
+            }
+        }
+    }
+    Ok(rules)
+}
+
+#[cfg(unix)]
+fn parse_iptables_rules(stdout: &str) -> Result<Vec<FirewallRule>, String> {
+    let mut rules = Vec::new();
+    let mut current_chain = String::new();
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.starts_with("Chain") {
+            current_chain = line.split_whitespace().nth(1).unwrap_or("").to_string();
+            continue;
+        }
+        if line.is_empty() || line.starts_with("num") || line.starts_with("target") {
+            continue;
+        }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 3 {
+            let target = parts.get(1).unwrap_or(&"").to_string();
+            let action = if target == "ACCEPT" { "Allow" } else if target == "DROP" || target == "REJECT" { "Block" } else { "Allow" };
+            let direction = match current_chain.as_str() {
+                "INPUT" => "Inbound",
+                "OUTPUT" => "Outbound",
+                "FORWARD" => "Forward",
+                _ => "Inbound",
+            };
+            rules.push(FirewallRule {
+                name: format!("{}-{}", current_chain, parts.get(0).unwrap_or(&"?")),
+                display_name: format!("{} rule #{}", current_chain, parts.get(0).unwrap_or(&"?")),
+                direction: direction.to_string(),
+                action: action.to_string(),
+                enabled: "True".to_string(),
+            });
+        }
+    }
+    Ok(rules)
+}
+
+#[cfg(unix)]
+fn set_rule_enabled(name: &str, enable: bool) -> Result<(), String> {
+    // UFW: delete + re-add or toggle. For simplicity, we use ufw delete
+    if has_ufw() {
+        let action = if enable { "enable" } else { "disable" };
+        // Can't easily toggle individual rules in ufw — would need to delete/recreate
+        Err(format!("Toggling individual rules is not supported with ufw. Use 'ufw {action}' to toggle the firewall itself."))
+    } else {
+        Err("Toggling individual rules requires ufw. Install with: apt install ufw".to_string())
+    }
+}
+
+#[cfg(unix)]
+fn add_rule(name: &str, direction: &str, action: &str, protocol: &str, port: &str) -> Result<(), String> {
+    if !has_ufw() {
+        return Err("ufw is required to add firewall rules. Install with: apt install ufw".to_string());
+    }
+
+    let port_val = port.trim();
+    let proto_lower = protocol.to_lowercase();
+
+    // Build ufw command: ufw allow/deny in/out proto port
+    let ufw_action = if action == "Allow" { "allow" } else { "deny" };
+    let ufw_dir = if direction == "Inbound" { "in" } else { "out" };
+
+    let mut args: Vec<String> = vec![ufw_action.to_string(), ufw_dir.to_string()];
+
+    if protocol != "Any" && !port_val.is_empty() {
+        args.push("proto".to_string());
+        args.push(proto_lower.to_string());
+        args.push("to".to_string());
+        args.push("any".to_string());
+        args.push("port".to_string());
+        args.push(port_val.to_string());
+    } else if !port_val.is_empty() {
+        args.push(port_val.to_string());
+    }
+
+    // Use sudo if not root
+    let (cmd, prefix): (&str, Vec<String>) = if std::env::var("EUID").map(|e| e == "0").unwrap_or(false) {
+        ("ufw", args)
+    } else {
+        let mut sudo_args = vec!["-n".to_string(), "ufw".to_string()];
+        sudo_args.extend(args);
+        ("sudo", sudo_args)
+    };
+
+    let output = Command::new(cmd)
+        .args(&prefix)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(if stderr.is_empty() {
+            format!("ufw rule creation failed — may require sudo/root access")
+        } else {
+            stderr
+        });
+    }
+    Ok(())
+}
+
+// ── Cross-platform dispatch ─────────────────────────────────────
 
 fn toggle_selected(state: &mut FirewallState, enable: bool) {
     let Some(rule) = state.rules.get(state.selected) else { return };

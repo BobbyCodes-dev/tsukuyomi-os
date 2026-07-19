@@ -106,7 +106,10 @@ impl BackupsState {
     }
 }
 
-fn run_robocopy(source: &str, destination: &str) -> Result<String, String> {
+// ── Windows: robocopy ───────────────────────────────────────────
+
+#[cfg(windows)]
+fn run_backup_tool(source: &str, destination: &str) -> Result<String, String> {
     let output = Command::new("robocopy")
         .args([source, destination, "/MIR", "/R:1", "/W:1"])
         .output()
@@ -134,6 +137,58 @@ fn run_robocopy(source: &str, destination: &str) -> Result<String, String> {
     Ok(format!("robocopy exit code {code}"))
 }
 
+// ── Linux: rsync ────────────────────────────────────────────────
+
+#[cfg(unix)]
+fn run_backup_tool(source: &str, destination: &str) -> Result<String, String> {
+    // Ensure source ends with / for rsync directory semantics
+    let src = if source.ends_with('/') { source.to_string() } else { format!("{source}/") };
+
+    // Check if rsync is available
+    let has_rsync = Command::new("which")
+        .arg("rsync")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false);
+
+    if !has_rsync {
+        return Err("rsync is not installed — install with: apt install rsync (or dnf install rsync)".to_string());
+    }
+
+    // Create destination if it doesn't exist
+    let _ = std::fs::create_dir_all(destination);
+
+    let output = Command::new("rsync")
+        .args(["-a", "--delete", "--stats", &src, destination])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return Err(if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            format!("rsync failed: {stdout}")
+        } else {
+            format!("rsync exited with code {}", output.status.code().unwrap_or(-1))
+        });
+    }
+
+    // Extract summary from --stats output
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let summary: String = stdout
+        .lines()
+        .filter(|l| l.starts_with("Number of files") || l.starts_with("Total file size") || l.starts_with("Total transferred"))
+        .take(3)
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    Ok(if summary.is_empty() { "rsync completed".to_string() } else { summary })
+}
+
 fn run_selected(state: &mut BackupsState) {
     if state.running_id.is_some() {
         state.status = "A backup is already running.".to_string();
@@ -148,7 +203,7 @@ fn run_selected(state: &mut BackupsState) {
     let (tx, rx) = mpsc::channel();
     state.run_rx = Some(rx);
     std::thread::spawn(move || {
-        let result = run_robocopy(&source, &destination);
+        let result = run_backup_tool(&source, &destination);
         let _ = tx.send((id, result));
     });
 }

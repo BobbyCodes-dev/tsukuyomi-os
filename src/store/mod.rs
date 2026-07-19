@@ -34,9 +34,22 @@ pub mod crunch;
 use std::path::PathBuf;
 
 pub fn data_dir() -> PathBuf {
-    let local_app_data =
-        std::env::var("LOCALAPPDATA").expect("LOCALAPPDATA environment variable must be set");
-    PathBuf::from(local_app_data).join("TsukuyomiOS")
+    #[cfg(windows)]
+    {
+        let local_app_data = std::env::var("LOCALAPPDATA")
+            .expect("LOCALAPPDATA environment variable must be set");
+        PathBuf::from(local_app_data).join("TsukuyomiOS")
+    }
+    #[cfg(unix)]
+    {
+        if let Ok(xdg_data) = std::env::var("XDG_DATA_HOME") {
+            PathBuf::from(xdg_data).join("TsukuyomiOS")
+        } else if let Some(home) = std::env::var_os("HOME") {
+            PathBuf::from(home).join(".local").join("share").join("TsukuyomiOS")
+        } else {
+            PathBuf::from("/tmp").join("TsukuyomiOS")
+        }
+    }
 }
 
 pub fn ensure_data_dir() -> anyhow::Result<PathBuf> {
