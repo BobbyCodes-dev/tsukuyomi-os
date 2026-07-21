@@ -5,7 +5,6 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use super::network::NetworkMode;
-use super::scancode;
 
 const RELEASES_INDEX_URL: &str =
     "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/latest-releases.yaml";
@@ -68,6 +67,22 @@ fn parse_latest_releases(text: &str) -> Vec<ReleaseEntry> {
     entries
 }
 
+// ── Cross-platform HTTP fetch ───────────────────────────────────
+
+fn curl_fetch_text(url: &str) -> Result<String> {
+    let output = Command::new("curl")
+        .args(["-fsSL", url])
+        .output()?;
+    if !output.status.success() {
+        bail!(
+            "Failed to fetch {url}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+#[cfg(windows)]
 fn powershell_fetch_text(url: &str) -> Result<String> {
     let ps = format!(
         "$ProgressPreference='SilentlyContinue'; (Invoke-WebRequest -UseBasicParsing -Uri '{url}').Content"
@@ -79,6 +94,41 @@ fn powershell_fetch_text(url: &str) -> Result<String> {
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
+fn fetch_text(url: &str) -> Result<String> {
+    // Try curl first (available on both Linux and modern Windows)
+    if Command::new("curl")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+    {
+        curl_fetch_text(url)
+    } else {
+        #[cfg(windows)]
+        {
+            powershell_fetch_text(url)
+        }
+        #[cfg(unix)]
+        {
+            bail!("curl is required but not found on PATH")
+        }
+    }
+}
+
+fn curl_download_file(url: &str, dest: &Path) -> Result<()> {
+    let dest_str = dest.to_string_lossy().to_string();
+    let status = Command::new("curl")
+        .args(["-fsSL", "-o", &dest_str, url])
+        .status()?;
+    if !status.success() {
+        bail!("Failed to download {url}");
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
 fn powershell_download_file(url: &str, dest: &Path) -> Result<()> {
     let dest_str = dest.to_string_lossy().to_string();
     let ps = format!(
@@ -90,6 +140,30 @@ fn powershell_download_file(url: &str, dest: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+fn download_file(url: &str, dest: &Path) -> Result<()> {
+    if Command::new("curl")
+        .arg("--version")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+    {
+        curl_download_file(url, dest)
+    } else {
+        #[cfg(windows)]
+        {
+            powershell_download_file(url, dest)
+        }
+        #[cfg(unix)]
+        {
+            bail!("curl is required but not found on PATH")
+        }
+    }
+}
+
+// ── Checksum ────────────────────────────────────────────────────
 
 fn sha256_file(path: &Path) -> Result<String> {
     use sha2::{Digest, Sha256};
@@ -106,6 +180,8 @@ fn sha256_file(path: &Path) -> Result<String> {
     }
     Ok(format!("{:x}", hasher.finalize()))
 }
+
+// ── VirtualBox helpers (cross-platform) ─────────────────────────
 
 fn vbox(args: &[&str]) -> Result<()> {
     let status = Command::new("VBoxManage").args(args).status()?;
@@ -219,7 +295,7 @@ fn wait_for_boot_shell(vm_name: &str, log_path: &Path, tx: &Sender<BuildEvent>) 
     let timeout = Duration::from_secs(240);
     let probe_interval = Duration::from_secs(5);
     loop {
-        let _ = scancode::type_string(vm_name, &format!("echo {marker} > /dev/ttyS0\n"));
+        let _ = super::scancode::type_string(vm_name, &format!("echo {marker} > /dev/ttyS0\n"));
         std::thread::sleep(probe_interval);
         if let Ok(content) = std::fs::read_to_string(log_path) {
             if content.contains(marker) {
@@ -265,7 +341,7 @@ fn run_unattended_install(vm_name: &str, log_path: &Path, tx: &Sender<BuildEvent
     let write_cmd = format!(
         "cat > /tmp/tsukuyomi-answers <<'TSUKEOF'\n{answerfile}TSUKEOF\necho TSUKUYOMI_STAGE_ANSWERFILE_DONE > /dev/ttyS0\n"
     );
-    scancode::type_string(vm_name, &write_cmd)?;
+    super::scancode::type_string(vm_name, &write_cmd)?;
     if !poll_for_marker(log_path, "TSUKUYOMI_STAGE_ANSWERFILE_DONE", Duration::from_secs(30), Duration::from_millis(500)) {
         bail!("Timed out waiting for the unattended answer file to be written inside the VM.");
     }
@@ -274,7 +350,7 @@ fn run_unattended_install(vm_name: &str, log_path: &Path, tx: &Sender<BuildEvent
         "Running unattended Alpine install (offline, from ISO repo)... this can take several minutes.".to_string(),
     ));
     let install_cmd = "setup-alpine -ef /tmp/tsukuyomi-answers > /tmp/tsukuyomi-setup.log 2>&1 && echo TSUKUYOMI_STAGE_INSTALL_DONE > /dev/ttyS0 || echo TSUKUYOMI_STAGE_INSTALL_FAILED > /dev/ttyS0\n";
-    scancode::type_string(vm_name, install_cmd)?;
+    super::scancode::type_string(vm_name, install_cmd)?;
 
     let start = Instant::now();
     let timeout = Duration::from_secs(20 * 60);
@@ -297,7 +373,7 @@ fn run_unattended_install(vm_name: &str, log_path: &Path, tx: &Sender<BuildEvent
     }
 
     let _ = tx.send(BuildEvent::Status("Install finished, shutting down the VM...".to_string()));
-    scancode::type_string(vm_name, "poweroff\n")?;
+    super::scancode::type_string(vm_name, "poweroff\n")?;
     Ok(())
 }
 
@@ -317,6 +393,81 @@ fn wait_for_vm_stopped(vm_name: &str, timeout: Duration) -> Result<()> {
     }
 }
 
+// ── QEMU/KVM build path (Linux) ─────────────────────────────────
+
+#[cfg(unix)]
+fn build_qemu_vm(
+    dest_dir: &Path,
+    vm_name: &str,
+    iso_path: &Path,
+    tx: &Sender<BuildEvent>,
+) -> Result<PathBuf> {
+    let qcow2_path = dest_dir.join(format!("{vm_name}.qcow2"));
+
+    if !qcow2_path.exists() {
+        let _ = tx.send(BuildEvent::Status("Creating QEMU disk image (8GB qcow2)...".to_string()));
+        let disk_str = qcow2_path.to_string_lossy().to_string();
+        let status = Command::new("qemu-img")
+            .args(["create", "-f", "qcow2", &disk_str, "8G"])
+            .status()?;
+        if !status.success() {
+            bail!("qemu-img create failed for {disk_str}");
+        }
+    }
+
+    let _ = tx.send(BuildEvent::Status("Booting Alpine installer via QEMU (headless)...".to_string()));
+    let disk_str = qcow2_path.to_string_lossy().to_string();
+    let iso_str = iso_path.to_string_lossy().to_string();
+
+    let has_kvm = std::path::Path::new("/dev/kvm").exists();
+    let mut qemu_args: Vec<String> = vec![
+        "-name".to_string(), vm_name.to_string(),
+        "-machine".to_string(), "type=q35".to_string(),
+        "-m".to_string(), "2048".to_string(),
+        "-smp".to_string(), "cpus=2".to_string(),
+        "-drive".to_string(), format!("file={disk_str},format=qcow2,if=virtio"),
+        "-cdrom".to_string(), iso_str,
+        "-boot".to_string(), "d".to_string(),
+        "-display".to_string(), "none".to_string(),
+        "-serial".to_string(), "file".to_string(),
+    ];
+
+    let serial_log = dest_dir.join(format!("{vm_name}-install.log"));
+    qemu_args.push(serial_log.to_string_lossy().to_string());
+
+    if has_kvm {
+        qemu_args.push("-enable-kvm".to_string());
+    }
+
+    let mut child = Command::new("qemu-system-x86_64")
+        .args(&qemu_args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()?;
+
+    // Wait for boot, then send commands via serial (stdin)
+    let _ = tx.send(BuildEvent::Status("Waiting for Alpine to boot in QEMU...".to_string()));
+    std::thread::sleep(Duration::from_secs(30));
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        use std::io::Write;
+        let _ = stdin.write_all(b"\n");
+        std::thread::sleep(Duration::from_secs(3));
+        let _ = stdin.write_all(b"setup-alpine -ef /tmp/tsukuyomi-answers\n");
+    }
+
+    let _ = tx.send(BuildEvent::Status(
+        "QEMU VM running with Alpine installer. Interactive setup may be needed.".to_string(),
+    ));
+
+    // For QEMU, we return the qcow2 path — the VM will need manual interaction
+    // or a more sophisticated serial automation approach
+    Ok(qcow2_path)
+}
+
+// ── Main build entry point ──────────────────────────────────────
+
 pub fn build_or_download_vm(
     dest_dir: &Path,
     vm_name: &str,
@@ -324,6 +475,48 @@ pub fn build_or_download_vm(
     tx: Sender<BuildEvent>,
 ) -> Result<PathBuf> {
     std::fs::create_dir_all(dest_dir)?;
+
+    #[cfg(unix)]
+    {
+        // On Linux, prefer QEMU/KVM if available, fall back to VirtualBox
+        let has_qemu = Command::new("which")
+            .arg("qemu-system-x86_64")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        let has_vbox = Command::new("which")
+            .arg("VBoxManage")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        // Use .vdi for VirtualBox, .qcow2 for QEMU
+        let qcow2_path = dest_dir.join(format!("{vm_name}.qcow2"));
+        let vdi_path = dest_dir.join(format!("{vm_name}.vdi"));
+
+        if has_qemu && qcow2_path.exists() {
+            let _ = tx.send(BuildEvent::Status(format!("Using existing QEMU disk image at {}", qcow2_path.display())));
+            return Ok(qcow2_path);
+        }
+
+        if has_vbox && vdi_path.exists() {
+            let _ = tx.send(BuildEvent::Status(format!("Using existing VirtualBox disk image at {}", vdi_path.display())));
+            return Ok(vdi_path);
+        }
+
+        if has_qemu && !has_vbox {
+            // QEMU-only path
+            return build_qemu_vm_path(dest_dir, vm_name, network, tx);
+        }
+        // Fall through to VirtualBox path (or if both available, prefer VBox for unattended install)
+    }
+
+    // VirtualBox build path (cross-platform)
     let vdi_path = dest_dir.join(format!("{vm_name}.vdi"));
 
     if vdi_path.exists() {
@@ -332,7 +525,7 @@ pub fn build_or_download_vm(
     }
 
     let _ = tx.send(BuildEvent::Status("Looking up latest Alpine 'virt' release...".to_string()));
-    let index_text = powershell_fetch_text(RELEASES_INDEX_URL)?;
+    let index_text = fetch_text(RELEASES_INDEX_URL)?;
     let entries = parse_latest_releases(&index_text);
     let entry = entries
         .iter()
@@ -356,7 +549,7 @@ pub fn build_or_download_vm(
 
     if need_download {
         let _ = tx.send(BuildEvent::Status(format!("Downloading {} ...", entry.file)));
-        powershell_download_file(&iso_url, &iso_path)?;
+        download_file(&iso_url, &iso_path)?;
         let _ = tx.send(BuildEvent::Status("Verifying SHA256 checksum...".to_string()));
         let actual = sha256_file(&iso_path)?;
         if !actual.eq_ignore_ascii_case(&entry.sha256) {
@@ -394,4 +587,53 @@ pub fn build_or_download_vm(
 
     let _ = tx.send(BuildEvent::Status("VM build complete.".to_string()));
     Ok(vdi_path)
+}
+
+// ── QEMU build helper (Linux) ───────────────────────────────────
+
+#[cfg(unix)]
+fn build_qemu_vm_path(
+    dest_dir: &Path,
+    vm_name: &str,
+    _network: NetworkMode,
+    tx: Sender<BuildEvent>,
+) -> Result<PathBuf> {
+    let _ = tx.send(BuildEvent::Status("Looking up latest Alpine 'virt' release...".to_string()));
+    let index_text = fetch_text(RELEASES_INDEX_URL)?;
+    let entries = parse_latest_releases(&index_text);
+    let entry = entries
+        .iter()
+        .find(|e| e.flavor == TARGET_FLAVOR)
+        .ok_or_else(|| anyhow!("Could not find the '{TARGET_FLAVOR}' flavor in the Alpine release index."))?;
+
+    let iso_path = dest_dir.join(&entry.file);
+    let iso_url = format!("{RELEASES_BASE_URL}/{}", entry.file);
+
+    let need_download = if iso_path.exists() {
+        match sha256_file(&iso_path) {
+            Ok(actual) => !actual.eq_ignore_ascii_case(&entry.sha256),
+            Err(_) => true,
+        }
+    } else {
+        true
+    };
+
+    if need_download {
+        let _ = tx.send(BuildEvent::Status(format!("Downloading {} ...", entry.file)));
+        download_file(&iso_url, &iso_path)?;
+        let _ = tx.send(BuildEvent::Status("Verifying SHA256 checksum...".to_string()));
+        let actual = sha256_file(&iso_path)?;
+        if !actual.eq_ignore_ascii_case(&entry.sha256) {
+            let _ = std::fs::remove_file(&iso_path);
+            bail!(
+                "SHA256 mismatch for {}: expected {}, got {actual}. Downloaded file was deleted.",
+                entry.file,
+                entry.sha256
+            );
+        }
+    } else {
+        let _ = tx.send(BuildEvent::Status("ISO already downloaded and checksum verified.".to_string()));
+    }
+
+    build_qemu_vm(dest_dir, vm_name, &iso_path, &tx)
 }

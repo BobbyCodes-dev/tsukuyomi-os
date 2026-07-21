@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-pub const NMAP_MISSING_MESSAGE: &str = "nmap not found on PATH — install from https://nmap.org/download.html";
+pub const NMAP_MISSING_MESSAGE: &str = "nmap not found on PATH — install with: apt install nmap / dnf install nmap / pacman -S nmap";
 
 pub fn strip_target(input: &str) -> String {
     let mut target = input.trim();
@@ -15,7 +15,13 @@ pub fn strip_target(input: &str) -> String {
 
 fn which_nmap() -> Option<PathBuf> {
     let path_var = std::env::var_os("PATH")?;
-    for ext in ["", ".exe"] {
+
+    #[cfg(windows)]
+    let extensions = ["", ".exe"];
+    #[cfg(unix)]
+    let extensions = [""];
+
+    for ext in extensions {
         let candidate_name = format!("nmap{ext}");
         for dir in std::env::split_paths(&path_var) {
             let candidate = dir.join(&candidate_name);

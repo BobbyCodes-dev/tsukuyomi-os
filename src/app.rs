@@ -33,6 +33,21 @@ pub enum Screen {
     Evidence(screens::evidence::EvidenceState),
     Cve(screens::cve::CveState),
     AiAgent(screens::ai_agent::AiAgentState),
+    VoidAccess(screens::voidaccess::VoidAccessState),
+    Aimap(screens::aimap::AimapState),
+    Netryx(screens::netryx::NetryxState),
+    PhoneInfoga(screens::phoneinfoga::PhoneInfogaState),
+    Fawkes(screens::fawkes::FawkesState),
+    ParamSpider(screens::paramspider::ParamSpiderState),
+    Photon(screens::photon::PhotonState),
+    OnionShare(screens::onionshare::OnionShareState),
+    ReconFtw(screens::reconftw::ReconFtwState),
+    Canarytokens(screens::canarytokens::CanarytokensState),
+    John(screens::john::JohnState),
+    Hashcat(screens::hashcat::HashcatState),
+    Hydra(screens::hydra::HydraState),
+    Hashid(screens::hashid::HashidState),
+    Crunch(screens::crunch::CrunchState),
 }
 
 impl Screen {
@@ -59,6 +74,21 @@ impl Screen {
             Screen::Evidence(_) => "Tsukuyomi OS - Evidence Vault",
             Screen::Cve(_) => "Tsukuyomi OS - CVE Lookup",
             Screen::AiAgent(_) => "Tsukuyomi OS - AI Agent",
+            Screen::VoidAccess(_) => "Tsukuyomi OS - VoidAccess (Dark Web OSINT)",
+            Screen::Aimap(_) => "Tsukuyomi OS - AIMap (AI Infra Discovery)",
+            Screen::Netryx(_) => "Tsukuyomi OS - Netryx (Image Geolocation)",
+            Screen::PhoneInfoga(_) => "Tsukuyomi OS - PhoneInfoga (Phone OSINT)",
+            Screen::Fawkes(_) => "Tsukuyomi OS - Fawkes (Image Anonymization)",
+            Screen::ParamSpider(_) => "Tsukuyomi OS - ParamSpider (URL Parameter Discovery)",
+            Screen::Photon(_) => "Tsukuyomi OS - Photon (Web Crawler)",
+            Screen::OnionShare(_) => "Tsukuyomi OS - OnionShare (Anonymous File Sharing)",
+            Screen::ReconFtw(_) => "Tsukuyomi OS - reconFTW (Reconnaissance Framework)",
+            Screen::Canarytokens(_) => "Tsukuyomi OS - Canarytokens (Token Generation)",
+            Screen::John(_) => "Tsukuyomi OS - John the Ripper (Password Cracking)",
+            Screen::Hashcat(_) => "Tsukuyomi OS - Hashcat (GPU Password Recovery)",
+            Screen::Hydra(_) => "Tsukuyomi OS - Hydra (Network Brute Force)",
+            Screen::Hashid(_) => "Tsukuyomi OS - Hashid (Hash Identification)",
+            Screen::Crunch(_) => "Tsukuyomi OS - Crunch (Wordlist Generator)",
         }
     }
 }
@@ -87,6 +117,25 @@ pub enum Action {
     ToFindings,
     ToEvidence,
     ToCve,
+<<<<<<< HEAD
+=======
+    ToAiAgent,
+    ToVoidAccess,
+    ToAimap,
+    ToNetryx,
+    ToPhoneInfoga,
+    ToFawkes,
+    ToParamSpider,
+    ToPhoton,
+    ToOnionShare,
+    ToReconFtw,
+    ToCanarytokens,
+    ToJohn,
+    ToHashcat,
+    ToHydra,
+    ToHashid,
+    ToCrunch,
+>>>>>>> origin/recovered/public-leak-2026-07-19
     Back,
 }
 
@@ -209,6 +258,91 @@ impl App {
                     self.screen = Screen::Cve(screens::cve::CveState::new(user.id));
                 }
             }
+<<<<<<< HEAD
+=======
+            Action::ToAiAgent => {
+                if let (Some(user), Some(key)) = (self.current_user.clone(), self.vault_key) {
+                    self.screen = Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key));
+                } else if let Some(desktop) = &mut self.desktop {
+                    desktop.log_status("AI Agent unavailable: unable to derive encryption key.");
+                }
+            }
+            Action::ToVoidAccess => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::VoidAccess(screens::voidaccess::VoidAccessState::new(user.id));
+                }
+            }
+            Action::ToAimap => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Aimap(screens::aimap::AimapState::new(user.id));
+                }
+            }
+            Action::ToNetryx => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Netryx(screens::netryx::NetryxState::new(user.id));
+                }
+            }
+            Action::ToPhoneInfoga => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::PhoneInfoga(screens::phoneinfoga::PhoneInfogaState::new(user.id));
+                }
+            }
+            Action::ToFawkes => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Fawkes(screens::fawkes::FawkesState::new(user.id));
+                }
+            }
+            Action::ToParamSpider => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::ParamSpider(screens::paramspider::ParamSpiderState::new(user.id));
+                }
+            }
+            Action::ToPhoton => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Photon(screens::photon::PhotonState::new(user.id));
+                }
+            }
+            Action::ToOnionShare => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::OnionShare(screens::onionshare::OnionShareState::new(user.id));
+                }
+            }
+            Action::ToReconFtw => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::ReconFtw(screens::reconftw::ReconFtwState::new(user.id));
+                }
+            }
+            Action::ToCanarytokens => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Canarytokens(screens::canarytokens::CanarytokensState::new(user.id));
+                }
+            }
+            Action::ToJohn => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::John(screens::john::JohnState::new(user.id));
+                }
+            }
+            Action::ToHashcat => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Hashcat(screens::hashcat::HashcatState::new(user.id));
+                }
+            }
+            Action::ToHydra => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Hydra(screens::hydra::HydraState::new(user.id));
+                }
+            }
+            Action::ToHashid => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Hashid(screens::hashid::HashidState::new(user.id));
+                }
+            }
+            Action::ToCrunch => {
+                if let Some(user) = self.current_user.clone() {
+                    self.screen = Screen::Crunch(screens::crunch::CrunchState::new(user.id));
+                }
+            }
+>>>>>>> origin/recovered/public-leak-2026-07-19
             Action::Back => self.screen = Screen::Desktop,
         }
         self.set_window_title();
@@ -248,6 +382,21 @@ impl App {
             Screen::Evidence(state) => screens::evidence::handle_key(state, key),
             Screen::Cve(state) => screens::cve::handle_key(state, key),
             Screen::AiAgent(state) => screens::ai_agent::handle_key(state, key),
+            Screen::VoidAccess(state) => screens::voidaccess::handle_key(state, key),
+            Screen::Aimap(state) => screens::aimap::handle_key(state, key),
+            Screen::Netryx(state) => screens::netryx::handle_key(state, key),
+            Screen::PhoneInfoga(state) => screens::phoneinfoga::handle_key(state, key),
+            Screen::Fawkes(state) => screens::fawkes::handle_key(state, key),
+            Screen::ParamSpider(state) => screens::paramspider::handle_key(state, key),
+            Screen::Photon(state) => screens::photon::handle_key(state, key),
+            Screen::OnionShare(state) => screens::onionshare::handle_key(state, key),
+            Screen::ReconFtw(state) => screens::reconftw::handle_key(state, key),
+            Screen::Canarytokens(state) => screens::canarytokens::handle_key(state, key),
+            Screen::John(state) => screens::john::handle_key(state, key),
+            Screen::Hashcat(state) => screens::hashcat::handle_key(state, key),
+            Screen::Hydra(state) => screens::hydra::handle_key(state, key),
+            Screen::Hashid(state) => screens::hashid::handle_key(state, key),
+            Screen::Crunch(state) => screens::crunch::handle_key(state, key),
         };
         self.apply(action);
     }
@@ -280,6 +429,21 @@ impl App {
             Screen::Evidence(state) => screens::evidence::draw(frame, area, state),
             Screen::Cve(state) => screens::cve::draw(frame, area, state),
             Screen::AiAgent(state) => screens::ai_agent::draw(frame, area, state),
+            Screen::VoidAccess(state) => screens::voidaccess::draw(frame, area, state),
+            Screen::Aimap(state) => screens::aimap::draw(frame, area, state),
+            Screen::Netryx(state) => screens::netryx::draw(frame, area, state),
+            Screen::PhoneInfoga(state) => screens::phoneinfoga::draw(frame, area, state),
+            Screen::Fawkes(state) => screens::fawkes::draw(frame, area, state),
+            Screen::ParamSpider(state) => screens::paramspider::draw(frame, area, state),
+            Screen::Photon(state) => screens::photon::draw(frame, area, state),
+            Screen::OnionShare(state) => screens::onionshare::draw(frame, area, state),
+            Screen::ReconFtw(state) => screens::reconftw::draw(frame, area, state),
+            Screen::Canarytokens(state) => screens::canarytokens::draw(frame, area, state),
+            Screen::John(state) => screens::john::draw(frame, area, state),
+            Screen::Hashcat(state) => screens::hashcat::draw(frame, area, state),
+            Screen::Hydra(state) => screens::hydra::draw(frame, area, state),
+            Screen::Hashid(state) => screens::hashid::draw(frame, area, state),
+            Screen::Crunch(state) => screens::crunch::draw(frame, area, state),
         }
     }
 
@@ -331,6 +495,66 @@ impl App {
 
             if let Screen::AiAgent(state) = &mut self.screen {
                 state.poll();
+            }
+
+            if let Screen::VoidAccess(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Aimap(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Netryx(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::PhoneInfoga(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Fawkes(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::ParamSpider(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Photon(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::OnionShare(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::ReconFtw(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Canarytokens(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::John(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Hashcat(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Hydra(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Hashid(state) = &mut self.screen {
+                state.poll_run();
+            }
+
+            if let Screen::Crunch(state) = &mut self.screen {
+                state.poll_run();
             }
         }
         Ok(())

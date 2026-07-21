@@ -8,20 +8,42 @@ pub struct UninstallArgs {
     pub yes: bool,
 }
 
+#[cfg(windows)]
 fn home_dir() -> Option<PathBuf> {
     std::env::var_os("USERPROFILE").map(PathBuf::from)
 }
 
+#[cfg(unix)]
+fn home_dir() -> Option<PathBuf> {
+    std::env::var_os("HOME").map(PathBuf::from)
+}
+
 fn display_path(p: &std::path::Path) -> String {
     let s = p.display().to_string();
-    s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
+    #[cfg(windows)]
+    { s.strip_prefix(r"\\?\").unwrap_or(&s).to_string() }
+    #[cfg(unix)]
+    { s }
 }
 
 fn discover_targets() -> BTreeSet<PathBuf> {
     let mut targets: Vec<PathBuf> = vec![crate::store::data_dir()];
-    if let Some(home) = home_dir() {
-        targets.push(home.join("AppData").join("Local").join("TsukuyomiOS"));
-        targets.push(home.join("AppData").join("Roaming").join("TsukuyomiOS"));
+
+    #[cfg(windows)]
+    {
+        if let Some(home) = home_dir() {
+            targets.push(home.join("AppData").join("Local").join("TsukuyomiOS"));
+            targets.push(home.join("AppData").join("Roaming").join("TsukuyomiOS"));
+        }
+    }
+
+    #[cfg(unix)]
+    {
+        if let Some(home) = home_dir() {
+            targets.push(home.join(".local").join("share").join("TsukuyomiOS"));
+            targets.push(home.join(".config").join("TsukuyomiOS"));
+            targets.push(home.join(".cache").join("TsukuyomiOS"));
+        }
     }
 
     let mut existing: BTreeSet<PathBuf> = BTreeSet::new();
@@ -105,6 +127,7 @@ pub fn nuke(args: UninstallArgs) -> Result<()> {
 
     println!("Tsukuyomi OS has been removed from this machine.");
     Ok(())
+<<<<<<< HEAD
 }
 
 pub fn nuke_data(keep_vms: bool) -> Vec<String> {
@@ -119,3 +142,6 @@ pub fn nuke_data(keep_vms: bool) -> Vec<String> {
     messages.push("Tsukuyomi OS data has been erased.".to_string());
     messages
 }
+=======
+}
+>>>>>>> origin/recovered/public-leak-2026-07-19

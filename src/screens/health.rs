@@ -62,9 +62,9 @@ impl HealthState {
         }
 
         match query_ram() {
-            Ok((free_mb, total_mb)) => {
+            Ok((used_mb, total_mb)) => {
                 self.ram_total_mb = total_mb;
-                self.ram_used_mb = total_mb.saturating_sub(free_mb);
+                self.ram_used_mb = used_mb;
             }
             Err(e) => {
                 self.ram_total_mb = 0;
@@ -102,6 +102,9 @@ impl HealthState {
     }
 }
 
+// ── Windows: PowerShell / CIM ───────────────────────────────────
+
+#[cfg(windows)]
 fn run_powershell(script: &str) -> Result<String, String> {
     let output = Command::new("powershell")
         .args(["-NoProfile", "-Command", script])
@@ -114,6 +117,7 @@ fn run_powershell(script: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
+#[cfg(windows)]
 fn query_cpu() -> Result<f64, String> {
     let text = run_powershell(
         "(Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average",
@@ -121,24 +125,20 @@ fn query_cpu() -> Result<f64, String> {
     text.parse::<f64>().map_err(|_| format!("Unexpected CPU output: {text}"))
 }
 
+#[cfg(windows)]
 fn query_ram() -> Result<(u64, u64), String> {
     let text = run_powershell(
         "Get-CimInstance Win32_OperatingSystem | ForEach-Object { \"$($_.FreePhysicalMemory)|$($_.TotalVisibleMemorySize)\" }",
     )?;
     let mut parts = text.splitn(2, '|');
-    let free_kb: u64 = parts
-        .next()
-        .unwrap_or("")
-        .parse()
-        .map_err(|_| format!("Unexpected RAM output: {text}"))?;
-    let total_kb: u64 = parts
-        .next()
-        .unwrap_or("")
-        .parse()
-        .map_err(|_| format!("Unexpected RAM output: {text}"))?;
-    Ok((free_kb / 1024, total_kb / 1024))
+    let free_kb: u64 = parts.next().unwrap_or("").parse().map_err(|_| format!("Unexpected RAM output: {text}"))?;
+    let total_kb: u64 = parts.next().unwrap_or("").parse().map_err(|_| format!("Unexpected RAM output: {text}"))?;
+    let used_mb = total_kb.saturating_sub(free_kb) / 1024;
+    let total_mb = total_kb / 1024;
+    Ok((used_mb, total_mb))
 }
 
+#[cfg(windows)]
 fn query_disks() -> Result<Vec<DiskStat>, String> {
     let script = "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | ForEach-Object { \"$($_.DeviceID)|$($_.FreeSpace)|$($_.Size)\" }";
     let output = Command::new("powershell")
@@ -146,29 +146,23 @@ fn query_disks() -> Result<Vec<DiskStat>, String> {
         .output()
         .map_err(|e| e.to_string())?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { "Command failed.".to_string() } else { stderr });
+        return Err("Command failed.".to_string());
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut disks = Vec::new();
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
+        if line.is_empty() { continue; }
         let mut parts = line.splitn(3, '|');
         let drive = parts.next().unwrap_or("").to_string();
         let free: f64 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
         let total: f64 = parts.next().unwrap_or("0").parse().unwrap_or(0.0);
-        disks.push(DiskStat {
-            drive,
-            free_gb: free / 1_073_741_824.0,
-            total_gb: total / 1_073_741_824.0,
-        });
+        disks.push(DiskStat { drive, free_gb: free / 1_073_741_824.0, total_gb: total / 1_073_741_824.0 });
     }
     Ok(disks)
 }
 
+#[cfg(windows)]
 fn query_services() -> Result<Vec<ServiceStat>, String> {
     let script = "Get-Service | ForEach-Object { \"$($_.Name)|$($_.DisplayName)|$($_.Status)\" }";
     let output = Command::new("powershell")
@@ -176,25 +170,24 @@ fn query_services() -> Result<Vec<ServiceStat>, String> {
         .output()
         .map_err(|e| e.to_string())?;
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        return Err(if stderr.is_empty() { "Command failed.".to_string() } else { stderr });
+        return Err("Command failed.".to_string());
     }
     let stdout = String::from_utf8_lossy(&output.stdout);
     let mut services = Vec::new();
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
+        if line.is_empty() { continue; }
         let mut parts = line.splitn(3, '|');
-        let name = parts.next().unwrap_or("").to_string();
-        let display_name = parts.next().unwrap_or("").to_string();
-        let status = parts.next().unwrap_or("").to_string();
-        services.push(ServiceStat { name, display_name, status });
+        services.push(ServiceStat {
+            name: parts.next().unwrap_or("").to_string(),
+            display_name: parts.next().unwrap_or("").to_string(),
+            status: parts.next().unwrap_or("").to_string(),
+        });
     }
     Ok(services)
 }
 
+#[cfg(windows)]
 fn control_service(name: &str, action: &str) -> Result<(), String> {
     let escaped = name.replace('\'', "''");
     let cmd = match action {
@@ -210,12 +203,152 @@ fn control_service(name: &str, action: &str) -> Result<(), String> {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(if stderr.is_empty() {
             "Operation failed — this likely requires running Tsukuyomi OS as Administrator.".to_string()
-        } else {
-            stderr
-        });
+        } else { stderr });
     }
     Ok(())
 }
+
+// ── Linux: /proc + systemctl + df ───────────────────────────────
+
+#[cfg(unix)]
+fn query_cpu() -> Result<f64, String> {
+    // Read /proc/stat for CPU usage
+    let stat1 = std::fs::read_to_string("/proc/stat").map_err(|e| e.to_string())?;
+    let line1 = stat1.lines().next().ok_or("Empty /proc/stat")?;
+    let vals1: Vec<u64> = line1.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
+    if vals1.len() < 4 { return Err("Invalid /proc/stat format".to_string()); }
+    let idle1 = vals1[3];
+    let total1: u64 = vals1.iter().sum();
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let stat2 = std::fs::read_to_string("/proc/stat").map_err(|e| e.to_string())?;
+    let line2 = stat2.lines().next().ok_or("Empty /proc/stat")?;
+    let vals2: Vec<u64> = line2.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
+    if vals2.len() < 4 { return Err("Invalid /proc/stat format".to_string()); }
+    let idle2 = vals2[3];
+    let total2: u64 = vals2.iter().sum();
+
+    let total_delta = total2.saturating_sub(total1) as f64;
+    let idle_delta = idle2.saturating_sub(idle1) as f64;
+    if total_delta == 0.0 { return Ok(0.0); }
+    Ok(((total_delta - idle_delta) / total_delta) * 100.0)
+}
+
+#[cfg(unix)]
+fn query_ram() -> Result<(u64, u64), String> {
+    let meminfo = std::fs::read_to_string("/proc/meminfo").map_err(|e| e.to_string())?;
+    let mut mem_total_kb: u64 = 0;
+    let mut mem_available_kb: u64 = 0;
+
+    for line in meminfo.lines() {
+        if line.starts_with("MemTotal:") {
+            mem_total_kb = line.split_whitespace().nth(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        } else if line.starts_with("MemAvailable:") {
+            mem_available_kb = line.split_whitespace().nth(1).and_then(|s| s.parse().ok()).unwrap_or(0);
+        }
+    }
+
+    if mem_total_kb == 0 { return Err("Could not parse /proc/meminfo".to_string()); }
+
+    let total_mb = mem_total_kb / 1024;
+    let used_mb = mem_total_kb.saturating_sub(mem_available_kb) / 1024;
+    Ok((used_mb, total_mb))
+}
+
+#[cfg(unix)]
+fn query_disks() -> Result<Vec<DiskStat>, String> {
+    let output = Command::new("df")
+        .args(["-B1", "--output=source,size,avail,target"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err("df command failed".to_string());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut disks = Vec::new();
+    for line in stdout.lines().skip(1) { // skip header
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 { continue; }
+        let source = parts[0];
+        // Skip tmpfs, devtmpfs, overlay, etc.
+        if source.starts_with("tmpfs") || source.starts_with("dev") || source == "overlay" || source == "none" {
+            continue;
+        }
+        let total: f64 = parts[1].parse().unwrap_or(0.0);
+        let avail: f64 = parts[2].parse().unwrap_or(0.0);
+        let mount = parts[3];
+        disks.push(DiskStat {
+            drive: mount.to_string(),
+            free_gb: avail / 1_073_741_824.0,
+            total_gb: total / 1_073_741_824.0,
+        });
+    }
+    Ok(disks)
+}
+
+#[cfg(unix)]
+fn query_services() -> Result<Vec<ServiceStat>, String> {
+    // Use systemctl for systemd-based systems
+    let output = Command::new("systemctl")
+        .args(["list-units", "--type=service", "--no-legend", "--no-pager"])
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err("systemctl not available".to_string());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut services = Vec::new();
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 { continue; }
+        let name = parts[0].trim_end_matches(".service").to_string();
+        let status = if parts[3] == "running" { "Running" } else { "Stopped" }.to_string();
+        // Display name = unit name without .service suffix
+        let display_name = name.clone();
+        services.push(ServiceStat { name, display_name, status });
+    }
+    Ok(services)
+}
+
+#[cfg(unix)]
+fn control_service(name: &str, action: &str) -> Result<(), String> {
+    let unit = format!("{name}.service");
+    let systemctl_action = match action {
+        "start" => "start",
+        "stop" => "stop",
+        _ => "restart",
+    };
+
+    // Try without sudo first, fall back to sudo
+    let output = Command::new("systemctl")
+        .args([systemctl_action, &unit])
+        .output()
+        .map_err(|e| e.to_string())?;
+
+    if !output.status.success() {
+        // Try with sudo
+        let output = Command::new("sudo")
+            .args(["-n", "systemctl", systemctl_action, &unit])
+            .output()
+            .map_err(|e| e.to_string())?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(if stderr.is_empty() {
+                format!("systemctl {systemctl_action} {unit} failed — may require sudo/root")
+            } else {
+                stderr
+            });
+        }
+    }
+    Ok(())
+}
+
+// ── Cross-platform ──────────────────────────────────────────────
 
 fn control_selected(state: &mut HealthState, action: &str) {
     let Some(service) = state.services.get(state.selected) else { return };
@@ -258,10 +391,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &HealthState) {
 
     let ram_text = if state.ram_total_mb > 0 {
         let pct = (state.ram_used_mb as f64 / state.ram_total_mb as f64) * 100.0;
-        format!(
-            "RAM: {} MB / {} MB used ({pct:.0}%)",
-            state.ram_used_mb, state.ram_total_mb
-        )
+        format!("RAM: {} MB / {} MB used ({pct:.0}%)", state.ram_used_mb, state.ram_total_mb)
     } else {
         "RAM: unavailable".to_string()
     };
@@ -285,7 +415,7 @@ pub fn draw(frame: &mut Frame, area: Rect, state: &HealthState) {
         disk_rows,
         [Constraint::Length(8), Constraint::Length(12), Constraint::Length(12), Constraint::Length(10)],
     )
-    .header(Row::new(vec!["Drive", "Used", "Total", "Used %"]).style(theme::title_style()))
+    .header(Row::new(vec!["Mount", "Used", "Total", "Used %"]).style(theme::title_style()))
     .block(widgets::form_block("Disks"));
     frame.render_widget(disk_table, chunks[2]);
 
