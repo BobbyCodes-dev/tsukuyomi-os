@@ -117,9 +117,6 @@ pub enum Action {
     ToFindings,
     ToEvidence,
     ToCve,
-<<<<<<< HEAD
-=======
-    ToAiAgent,
     ToVoidAccess,
     ToAimap,
     ToNetryx,
@@ -135,7 +132,6 @@ pub enum Action {
     ToHydra,
     ToHashid,
     ToCrunch,
->>>>>>> origin/recovered/public-leak-2026-07-19
     Back,
 }
 
@@ -258,15 +254,6 @@ impl App {
                     self.screen = Screen::Cve(screens::cve::CveState::new(user.id));
                 }
             }
-<<<<<<< HEAD
-=======
-            Action::ToAiAgent => {
-                if let (Some(user), Some(key)) = (self.current_user.clone(), self.vault_key) {
-                    self.screen = Screen::AiAgent(screens::ai_agent::AiAgentState::new(user.id, key));
-                } else if let Some(desktop) = &mut self.desktop {
-                    desktop.log_status("AI Agent unavailable: unable to derive encryption key.");
-                }
-            }
             Action::ToVoidAccess => {
                 if let Some(user) = self.current_user.clone() {
                     self.screen = Screen::VoidAccess(screens::voidaccess::VoidAccessState::new(user.id));
@@ -342,7 +329,6 @@ impl App {
                     self.screen = Screen::Crunch(screens::crunch::CrunchState::new(user.id));
                 }
             }
->>>>>>> origin/recovered/public-leak-2026-07-19
             Action::Back => self.screen = Screen::Desktop,
         }
         self.set_window_title();

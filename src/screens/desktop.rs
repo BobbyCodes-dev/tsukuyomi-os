@@ -494,14 +494,11 @@ fn launch_selected(state: &mut DesktopState) -> Action {
         "findings" => Action::ToFindings,
         "evidence" => Action::ToEvidence,
         "cve" => Action::ToCve,
-<<<<<<< HEAD
         "ai_agent" => {
             launch_external::open_ai_agent_window();
             state.log_status("AI Agent opened in a new window. Log in there too.");
             Action::None
         }
-=======
-        "ai_agent" => Action::ToAiAgent,
         "voidaccess" => Action::ToVoidAccess,
         "aimap" => Action::ToAimap,
         "netryx" => Action::ToNetryx,
@@ -517,7 +514,6 @@ fn launch_selected(state: &mut DesktopState) -> Action {
         "hydra" => Action::ToHydra,
         "hashid" => Action::ToHashid,
         "crunch" => Action::ToCrunch,
->>>>>>> origin/recovered/public-leak-2026-07-19
         "browser" => {
             launch_external::open_browser();
             state.log_status("Browser opened externally.");

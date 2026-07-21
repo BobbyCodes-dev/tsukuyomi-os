@@ -127,7 +127,6 @@ pub fn nuke(args: UninstallArgs) -> Result<()> {
 
     println!("Tsukuyomi OS has been removed from this machine.");
     Ok(())
-<<<<<<< HEAD
 }
 
 pub fn nuke_data(keep_vms: bool) -> Vec<String> {
@@ -142,6 +141,3 @@ pub fn nuke_data(keep_vms: bool) -> Vec<String> {
     messages.push("Tsukuyomi OS data has been erased.".to_string());
     messages
 }
-=======
-}
->>>>>>> origin/recovered/public-leak-2026-07-19

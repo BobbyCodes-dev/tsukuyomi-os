@@ -124,9 +124,6 @@ Delete `tsukuyomi.exe` and remove `%LOCALAPPDATA%\TsukuyomiOS` if you want to re
 
 ## Building from source
 
-<<<<<<< HEAD
-This repository is for development. Public releases are published at [BobbyCodes-dev/tsukuyomi-os](https://github.com/BobbyCodes-dev/tsukuyomi-os) as a single prebuilt `tsukuyomi.exe` file only. Source code and build files are not released.
-=======
 ### Prerequisites
 - Rust toolchain (stable): https://rustup.rs
 - Cargo
@@ -144,7 +141,6 @@ cargo build --release
 ### Cross-compilation
 
 The `.cargo/config.toml` includes targets for both Windows (MSVC static CRT) and Linux (GNU). Build natively on each platform for best results.
->>>>>>> origin/recovered/public-leak-2026-07-19
 
 ## Security & Privacy Notes
 
@@ -156,8 +152,4 @@ The `.cargo/config.toml` includes targets for both Windows (MSVC static CRT) and
 
 ## License
 
-<<<<<<< HEAD
 Freeware — see [LICENSE](LICENSE).
-=======
-See the `LICENSE` file included in the release package.
->>>>>>> origin/recovered/public-leak-2026-07-19
